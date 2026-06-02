@@ -1,5 +1,29 @@
+# API 키 설정 파일 (절대 커밋 금지)
 config.py
-__pycache__/
+
+# 생성 파일
+data/dashboard.html
+data/backup_*.csv
+data/reports/
+
+# 로그
 logs/
-data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# macOS
 .DS_Store
+
+# IDE
+.vscode/
+.idea/
