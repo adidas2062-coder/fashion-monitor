@@ -412,7 +412,10 @@ def generate(
 </header>
 <div class="container">
 
-  <!-- 기획전 시그널 -->
+  <!-- 1. 날씨 & 수요 예측 -->
+  {_weather_block(weather_data or {{}})}
+
+  <!-- 2. 기획전 시그널 -->
   <div class="section">
     <h2>🎯 기획전 타이밍 시그널</h2>
     <div class="signal-grid">
@@ -420,7 +423,22 @@ def generate(
     </div>
   </div>
 
-  <!-- 무신사 랭킹 TOP 30 -->
+  <!-- 3. 실시간 검색어 + 트렌드 예측 -->
+  <div class="section">
+    <h2>🔍 무신사 실시간 검색어 & 다음주 트렌드 예측</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <h3 style="font-size:14px;margin-bottom:8px;color:#555">실시간 검색어 TOP 20</h3>
+        {_keyword_table(keyword_data or [])}
+      </div>
+      <div>
+        <h3 style="font-size:14px;margin-bottom:8px;color:#555">트렌드 예측 (데이터 축적 중)</h3>
+        {_forecast_table(forecasts or [])}
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 무신사 랭킹 TOP 30 -->
   <div class="section">
     <h2>🏆 무신사 랭킹 TOP 30</h2>
 
@@ -438,7 +456,7 @@ def generate(
       <div class="tab" onclick="switchMainCat('바지',this)">바지</div>
     </div>
 
-    <!-- 세분류 탭 (대분류 선택 시 동적 렌더링) -->
+    <!-- 세분류 탭 -->
     <div id="sub-cat-tabs" class="tabs" style="margin-bottom:12px;flex-wrap:wrap"></div>
 
     <div id="ranking-table-area">
@@ -446,7 +464,7 @@ def generate(
     </div>
   </div>
 
-  <!-- 신규 진입 상품 -->
+  <!-- 5. 신규 진입 상품 -->
   <div class="section">
     <h2>⬆ 오늘의 신규 진입 상품</h2>
     <div class="entry-grid">
@@ -454,7 +472,7 @@ def generate(
     </div>
   </div>
 
-  <!-- 차트 -->
+  <!-- 6. 트렌드 & 가격 분포 -->
   <div class="section">
     <h2>📊 트렌드 & 가격 분포</h2>
     <div class="chart-row">
@@ -463,36 +481,19 @@ def generate(
     </div>
   </div>
 
-  <!-- 브랜드 트래킹 -->
+  <!-- 7. 스테디셀러 -->
+  <div class="section">
+    <h2>🏆 스테디셀러 (연속 TOP 10)</h2>
+    {_steady_seller_rows(steady or [])}
+  </div>
+
+  <!-- 8. 관심 브랜드 현황 (맨 아래) -->
   <div class="section">
     <h2>🏷 관심 브랜드 현황</h2>
     <table>
       <thead><tr><th>브랜드</th><th>랭킹 내 상품수</th><th>최고 순위</th><th>전일 대비</th></tr></thead>
       <tbody>{_brand_rows(brand_data)}</tbody>
     </table>
-  </div>
-
-  {_weather_block(weather_data or {{}})}
-
-  <!-- 무신사 검색어 랭킹 + 트렌드 예측 -->
-  <div class="section">
-    <h2>🔍 무신사 실시간 검색어 & 다음주 트렌드 예측</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-      <div>
-        <h3 style="font-size:14px;margin-bottom:8px;color:#555">실시간 검색어 TOP 20</h3>
-        {_keyword_table(keyword_data or [])}
-      </div>
-      <div>
-        <h3 style="font-size:14px;margin-bottom:8px;color:#555">트렌드 예측 (데이터 축적 중)</h3>
-        {_forecast_table(forecasts or [])}
-      </div>
-    </div>
-  </div>
-
-  <!-- 스테디셀러 -->
-  <div class="section">
-    <h2>🏆 스테디셀러 (연속 TOP 10)</h2>
-    {_steady_seller_rows(steady or [])}
   </div>
 
 </div>
