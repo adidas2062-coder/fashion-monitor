@@ -186,21 +186,58 @@ def _keyword_table(keyword_data: List[Dict]) -> str:
     if not keyword_data:
         return '<p class="empty">데이터 없음</p>'
     rows = sorted([k for k in keyword_data if k.get("platform") == "무신사_검색어"],
-                  key=lambda x: x.get("rank", 999))[:20]
+                  key=lambda x: x.get("rank", 999))
     if not rows:
         return '<p class="empty">검색어 데이터 없음</p>'
-    trs = []
-    for r in rows:
+
+    def _row_html(r):
         fluct = r.get("fluctuation_label","→")
         amt   = r.get("fluctuation_amount", 0)
         color = "#27ae60" if "▲" in fluct else ("#e74c3c" if "▼" in fluct else "#888")
         badge = f'<span style="color:{color};font-weight:bold">{fluct}{amt if amt else ""}</span>'
         if "NEW" in fluct:
             badge = '<span style="background:#ede0ff;color:#7d3c98;padding:2px 6px;border-radius:10px;font-size:11px">NEW</span>'
-        trs.append(f"<tr><td>{r['rank']}</td><td>{badge}</td><td>{r['keyword']}</td></tr>")
+        return f"<tr><td>{r['rank']}</td><td>{badge}</td><td>{r['keyword']}</td></tr>"
+
+    initial = rows[:10]
+    extra   = rows[10:]
+    initial_html = "".join(_row_html(r) for r in initial)
+    extra_html   = "".join(_row_html(r) for r in extra)
+
+    expand_btn = ""
+    if extra:
+        expand_btn = f"""
+        <tr id="kw-expand-row">
+          <td colspan="3" style="text-align:center;padding:6px">
+            <button onclick="toggleKeywords()" id="kw-btn"
+              style="border:1px solid #ddd;background:#f8f9fa;padding:5px 18px;border-radius:20px;cursor:pointer;font-size:12px;color:#555">
+              ▼ {len(rows)}위까지 펼치기
+            </button>
+          </td>
+        </tr>"""
+        extra_rows = f'<tbody id="kw-extra" style="display:none">{"".join(_row_html(r) for r in extra)}</tbody>'
+    else:
+        extra_rows = ""
+
     return f"""<table>
       <thead><tr><th>#</th><th>변동</th><th>검색어</th></tr></thead>
-      <tbody>{"".join(trs)}</tbody></table>"""
+      <tbody>{initial_html}</tbody>
+      {extra_rows}
+      <tbody>{expand_btn}</tbody>
+    </table>
+    <script>
+    function toggleKeywords() {{
+      const el = document.getElementById('kw-extra');
+      const btn = document.getElementById('kw-btn');
+      if (el.style.display === 'none') {{
+        el.style.display = '';
+        btn.textContent = '▲ 접기';
+      }} else {{
+        el.style.display = 'none';
+        btn.textContent = '▼ {len(rows)}위까지 펼치기';
+      }}
+    }}
+    </script>"""
 
 
 def _forecast_table(forecasts: List[Dict]) -> str:
@@ -474,22 +511,24 @@ const subCats = {{
 let currentPeriod = '1일';
 let currentMainCat = '상의';
 let currentSubCat = '전체';
+let rankingExpanded = false;
 
 function renderRankingTable() {{
   const area = document.getElementById('ranking-table-area');
-  // 세분류가 '전체'면 대분류 key, 아니면 대분류_세분류 key
   const catKey = currentSubCat === '전체'
     ? currentMainCat
     : currentMainCat + '_' + currentSubCat;
   const key = currentPeriod + '|' + catKey;
-  const rows = rankingData[key] || [];
+  const allRows = rankingData[key] || [];
 
-  if (!rows.length) {{
+  if (!allRows.length) {{
     area.innerHTML = '<p class="empty">데이터 없음 (수집 후 표시됩니다)</p>';
     return;
   }}
+
+  const visibleRows = rankingExpanded ? allRows : allRows.slice(0, 10);
   let html = '<table><thead><tr><th>#</th><th>변동</th><th>상품명</th><th>브랜드</th><th>가격</th><th>세분류</th></tr></thead><tbody>';
-  rows.forEach(r => {{
+  visibleRows.forEach(r => {{
     const ch = r.rank_change;
     let badge = '';
     if (ch === null || ch === undefined) badge = '<span class="badge new">NEW</span>';
@@ -498,17 +537,26 @@ function renderRankingTable() {{
     else badge = '<span class="badge same">→</span>';
     const disc = r.discount_rate ? '<span class="disc">-' + r.discount_rate + '%</span>' : '';
     const subcat = (r.category || '').replace(currentMainCat + '_', '');
-    html += '<tr>';
-    html += '<td>' + r.rank + '</td>';
-    html += '<td>' + badge + '</td>';
+    html += '<tr><td>' + r.rank + '</td><td>' + badge + '</td>';
     html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '').slice(0, 30) + '</a></td>';
     html += '<td>' + (r.brand || '') + '</td>';
     html += '<td>' + Number(r.price).toLocaleString() + '원 ' + disc + '</td>';
-    html += '<td style="color:#888;font-size:11px">' + subcat + '</td>';
-    html += '</tr>';
+    html += '<td style="color:#888;font-size:11px">' + subcat + '</td></tr>';
   }});
   html += '</tbody></table>';
+
+  if (allRows.length > 10) {{
+    const btnText = rankingExpanded ? '▲ 접기' : '▼ ' + allRows.length + '위까지 펼치기';
+    html += '<div style="text-align:center;margin-top:8px">'
+      + '<button onclick="toggleRanking()" style="border:1px solid #ddd;background:#f8f9fa;padding:6px 20px;border-radius:20px;cursor:pointer;font-size:13px;color:#555">'
+      + btnText + '</button></div>';
+  }}
   area.innerHTML = html;
+}}
+
+function toggleRanking() {{
+  rankingExpanded = !rankingExpanded;
+  renderRankingTable();
 }}
 
 function renderSubCatTabs() {{
