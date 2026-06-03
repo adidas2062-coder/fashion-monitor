@@ -72,8 +72,20 @@ def run(dry_run: bool = False) -> None:
     # ── 1. 수집 ───────────────────────────────────────────────────────────────
     from collectors import musinsa, google_trends, naver_datalab, instagram
 
+    # 노션 저장용 — 오늘 스케줄에 해당하는 기간만
     today_rankings = _run("무신사 랭킹 수집", musinsa.collect, periods=periods) or []
     time.sleep(config.REQUEST_DELAY)
+
+    # 대시보드용 — 항상 3개 기간 모두 수집 (표시 전용, 노션 미저장)
+    all_periods = ["DAILY", "WEEKLY", "MONTHLY"]
+    if set(periods) == set(all_periods):
+        dashboard_rankings = today_rankings   # 이미 다 수집됨
+    else:
+        missing = [p for p in all_periods if p not in periods]
+        logger.info("대시보드용 추가 수집: %s", missing)
+        extra = _run("대시보드용 추가 기간 수집", musinsa.collect, periods=missing) or []
+        dashboard_rankings = today_rankings + extra
+        time.sleep(config.REQUEST_DELAY)
 
     google_data  = _run("구글 트렌드 수집", google_trends.collect) or []
     time.sleep(config.REQUEST_DELAY)
@@ -156,11 +168,15 @@ def run(dry_run: bool = False) -> None:
         logger.info("[DRY RUN] 저장 단계 스킵")
 
     # ── 5. 대시보드 생성 (dry-run 포함 항상 생성) ────────────────────────────
+    # 대시보드는 3개 기간 전체 데이터 사용
+    from analyzers import rank_diff as _rd
+    dashboard_rank_result = _rd.analyze(dashboard_rankings, yesterday_rankings) if dashboard_rankings != today_rankings else rank_result
+
     from exporters import dashboard
     dash_path = _run(
         "HTML 대시보드 생성",
         dashboard.generate,
-        rank_result, trend_data, price_result, brand_result, signals,
+        dashboard_rank_result, trend_data, price_result, brand_result, signals,
         weather_data, keyword_data, forecasts, steady,
     )
 
