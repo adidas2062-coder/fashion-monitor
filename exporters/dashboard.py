@@ -44,10 +44,21 @@ def _signal_cards(signals: List[Dict]) -> str:
     return "\n".join(parts)
 
 
-def _ranking_table(items: List[Dict], category: str) -> str:
-    rows = [i for i in items if i.get("category") == category][:10]
+def _ranking_table(items: List[Dict], cat_prefix: str, period: str = "1일") -> str:
+    """cat_prefix 로 시작하는 카테고리 중 period 일치 항목의 TOP 10 반환."""
+    # 대분류_전체 우선, 없으면 대분류_ 시작하는 전체 아이템에서 rank 오름차순
+    full_cat = f"{cat_prefix}_전체"
+    rows = [i for i in items
+            if i.get("category") == full_cat and i.get("period") == period]
     if not rows:
-        return "<p>데이터 없음</p>"
+        rows = [i for i in items
+                if i.get("category", "").startswith(cat_prefix + "_")
+                and i.get("period") == period]
+        rows.sort(key=lambda x: x.get("rank", 999))
+    rows = rows[:10]
+
+    if not rows:
+        return f'<p class="empty">데이터 없음 (수집 후 표시됩니다)</p>'
     trs = []
     for item in rows:
         badge = _rank_badge(item.get("rank_change"))
@@ -57,6 +68,7 @@ def _ranking_table(items: List[Dict], category: str) -> str:
         url   = item.get("url", "#")
         name  = item.get("product_name", "")[:30]
         brand = item.get("brand", "")
+        subcat = item.get("category", "").replace(cat_prefix + "_", "")
         trs.append(f"""
         <tr>
           <td>{item['rank']}</td>
@@ -64,10 +76,11 @@ def _ranking_table(items: List[Dict], category: str) -> str:
           <td><a href="{url}" target="_blank">{name}</a></td>
           <td>{brand}</td>
           <td>{price}원 {disc_str}</td>
+          <td style="color:#888;font-size:11px">{subcat}</td>
         </tr>""")
     return f"""
     <table>
-      <thead><tr><th>#</th><th>변동</th><th>상품명</th><th>브랜드</th><th>가격</th></tr></thead>
+      <thead><tr><th>#</th><th>변동</th><th>상품명</th><th>브랜드</th><th>가격</th><th>세분류</th></tr></thead>
       <tbody>{"".join(trs)}</tbody>
     </table>"""
 
@@ -157,6 +170,54 @@ def generate(
     trend_json = _trend_chart_data(trend_data)
     price_json = _price_chart_data(price_result)
 
+    # 기간 × 대분류 조합으로 랭킹 데이터 인덱싱
+    # key: "1일|상의", "주간|아우터" 등 → TOP10 상품 목록
+    _MAIN_CATS = {"상의": "상의", "아우터": "아우터", "바지": "바지"}
+    ranking_index: dict = {}
+    for item in items:
+        cat  = item.get("category", "")
+        period = item.get("period", "1일")
+        for main in _MAIN_CATS:
+            if cat.startswith(main + "_"):
+                key = f"{period}|{main}"
+                ranking_index.setdefault(key, [])
+                if len(ranking_index[key]) < 10:
+                    # 전체 서브카테고리 중 rank 낮은(좋은) 것 우선 — 전체 수집 후 정렬
+                    ranking_index[key].append({
+                        "rank":          item.get("rank"),
+                        "rank_change":   item.get("rank_change"),
+                        "product_name":  item.get("product_name", ""),
+                        "brand":         item.get("brand", ""),
+                        "price":         item.get("price", 0),
+                        "discount_rate": item.get("discount_rate", 0),
+                        "url":           item.get("url", ""),
+                        "category":      cat,
+                        "period":        period,
+                    })
+                break
+    # 전체 서브카테고리 데이터를 전체(_전체) 우선, 나머지는 rank 오름차순 정렬
+    for key in ranking_index:
+        period_k, main_k = key.split("|")
+        full_cat = f"{main_k}_전체"
+        full_items = [i for i in items
+                      if i.get("category") == full_cat and i.get("period") == period_k]
+        if full_items:
+            full_items.sort(key=lambda x: x.get("rank", 999))
+            ranking_index[key] = [{
+                "rank":          i.get("rank"),
+                "rank_change":   i.get("rank_change"),
+                "product_name":  i.get("product_name", ""),
+                "brand":         i.get("brand", ""),
+                "price":         i.get("price", 0),
+                "discount_rate": i.get("discount_rate", 0),
+                "url":           i.get("url", ""),
+                "category":      i.get("category", ""),
+                "period":        i.get("period", ""),
+            } for i in full_items[:10]]
+        else:
+            ranking_index[key].sort(key=lambda x: x.get("rank", 999))
+    ranking_json = json.dumps(ranking_index, ensure_ascii=False)
+
     html = f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -232,14 +293,21 @@ def generate(
   <!-- 무신사 랭킹 TOP 10 -->
   <div class="section">
     <h2>🏆 무신사 랭킹 TOP 10</h2>
-    <div class="tabs">
-      <div class="tab active" onclick="switchTab('상의',this)">상의</div>
-      <div class="tab" onclick="switchTab('아우터',this)">아우터</div>
-      <div class="tab" onclick="switchTab('바지',this)">바지</div>
+    <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <div class="tabs" id="period-tabs">
+        <div class="tab active" onclick="switchPeriod('1일',this)">1일</div>
+        <div class="tab" onclick="switchPeriod('주간',this)">주간</div>
+        <div class="tab" onclick="switchPeriod('월간',this)">월간</div>
+      </div>
+      <div class="tabs" id="cat-tabs">
+        <div class="tab active" onclick="switchCat('상의',this)">상의</div>
+        <div class="tab" onclick="switchCat('아우터',this)">아우터</div>
+        <div class="tab" onclick="switchCat('바지',this)">바지</div>
+      </div>
     </div>
-    <div id="tab-상의" class="tab-content active">{_ranking_table(items,'상의')}</div>
-    <div id="tab-아우터" class="tab-content">{_ranking_table(items,'아우터')}</div>
-    <div id="tab-바지" class="tab-content">{_ranking_table(items,'바지')}</div>
+    <div id="ranking-table-area">
+      {_ranking_table(items,'상의','1일')}
+    </div>
   </div>
 
   <!-- 신규 진입 상품 -->
@@ -271,13 +339,58 @@ def generate(
 </div>
 
 <script>
-// 탭 전환
-function switchTab(name, el) {{
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
-  el.classList.add('active');
+// 랭킹 데이터 (기간 × 카테고리 × 상품 목록)
+const rankingData = {ranking_json};
+
+let currentPeriod = '1일';
+let currentCat = '상의';
+
+function renderRankingTable() {{
+  const area = document.getElementById('ranking-table-area');
+  const key = currentPeriod + '|' + currentCat;
+  const rows = rankingData[key] || [];
+  if (!rows.length) {{
+    area.innerHTML = '<p class="empty">데이터 없음 (수집 후 표시됩니다)</p>';
+    return;
+  }}
+  let html = '<table><thead><tr><th>#</th><th>변동</th><th>상품명</th><th>브랜드</th><th>가격</th><th>세분류</th></tr></thead><tbody>';
+  rows.forEach(r => {{
+    const ch = r.rank_change;
+    let badge = '';
+    if (ch === null || ch === undefined) badge = '<span class="badge new">NEW</span>';
+    else if (ch > 0) badge = '<span class="badge up">▲' + ch + '</span>';
+    else if (ch < 0) badge = '<span class="badge down">▼' + Math.abs(ch) + '</span>';
+    else badge = '<span class="badge same">→</span>';
+    const disc = r.discount_rate ? '<span class="disc">-' + r.discount_rate + '%</span>' : '';
+    const subcat = (r.category || '').replace(currentCat + '_', '');
+    html += '<tr>';
+    html += '<td>' + r.rank + '</td>';
+    html += '<td>' + badge + '</td>';
+    html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '').slice(0, 30) + '</a></td>';
+    html += '<td>' + (r.brand || '') + '</td>';
+    html += '<td>' + Number(r.price).toLocaleString() + '원 ' + disc + '</td>';
+    html += '<td style="color:#888;font-size:11px">' + subcat + '</td>';
+    html += '</tr>';
+  }});
+  html += '</tbody></table>';
+  area.innerHTML = html;
 }}
+
+function switchPeriod(period, el) {{
+  currentPeriod = period;
+  document.querySelectorAll('#period-tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderRankingTable();
+}}
+
+function switchCat(cat, el) {{
+  currentCat = cat;
+  document.querySelectorAll('#cat-tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderRankingTable();
+}}
+
+renderRankingTable();
 
 // 트렌드 차트
 const td = {trend_json};
