@@ -47,15 +47,32 @@ def _run(label: str, func, *args, **kwargs):
 
 # ── 파이프라인 ────────────────────────────────────────────────────────────────
 
+def _collect_periods() -> list:
+    """날짜 조건에 따라 오늘 수집할 기간 목록 결정."""
+    today = date.today()
+    is_monday          = today.weekday() == 0
+    is_first_monday    = is_monday and today.day <= 7
+
+    periods = ["DAILY"]                           # 매일
+    if is_monday:
+        periods.append("WEEKLY")                  # 매주 월요일
+    if is_first_monday:
+        periods.append("MONTHLY")                 # 매월 첫째주 월요일
+    return periods
+
+
 def run(dry_run: bool = False) -> None:
+    today = date.today()
+    periods = _collect_periods()
     logger.info("=" * 60)
-    logger.info("패션 모니터링 시작 (%s)%s", date.today(), "  [DRY RUN]" if dry_run else "")
+    logger.info("패션 모니터링 시작 (%s) 수집기간=%s%s",
+                today, periods, "  [DRY RUN]" if dry_run else "")
     logger.info("=" * 60)
 
     # ── 1. 수집 ───────────────────────────────────────────────────────────────
     from collectors import musinsa, google_trends, naver_datalab, instagram
 
-    today_rankings = _run("무신사 랭킹 수집", musinsa.collect) or []
+    today_rankings = _run("무신사 랭킹 수집", musinsa.collect, periods=periods) or []
     time.sleep(config.REQUEST_DELAY)
 
     google_data  = _run("구글 트렌드 수집", google_trends.collect) or []

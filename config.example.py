@@ -43,12 +43,6 @@ LOG_PATH = "logs/run.log"
 
 # ── 관심 브랜드 (브랜드 트래킹용) ────────────────────────────────────────────
 WATCH_BRANDS = [
-    "MATIN KIM",
-    "COVERNAT",
-    "KIRSH",
-    "ADER ERROR",
-    "ROMANTIC CROWN",
-    "CARHARTT WIP",
     "커넥트킨록",
     "에든버러클럽",
     # 추가 브랜드를 여기에 입력
