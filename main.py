@@ -83,12 +83,19 @@ def run(dry_run: bool = False) -> None:
 
     insta_data   = _run("인스타그램 수집", instagram.collect) or []
 
-    # 작년 동기 아카이브 (YoY 비교용 — 매일 수집)
-    from collectors import musinsa_archive
+    # 무신사 검색어 랭킹
+    from collectors import musinsa_keywords, musinsa_archive, weather
+    keyword_data = _run("무신사 검색어 랭킹 수집", musinsa_keywords.collect) or []
+    time.sleep(config.REQUEST_DELAY)
+
+    # 날씨
+    weather_data = _run("날씨 수집", weather.collect) or {}
+
+    # 작년 동기 아카이브 (YoY 비교용)
     archive_data = _run("작년 동기 아카이브 수집", musinsa_archive.collect) or []
 
-    trend_data   = google_data + naver_data + insta_data
-    logger.info("트렌드 데이터 합계: %d건", len(trend_data))
+    trend_data   = google_data + naver_data + insta_data + keyword_data
+    logger.info("트렌드 데이터 합계: %d건 (검색어 %d건 포함)", len(trend_data), len(keyword_data))
 
     # ── 2. 어제 랭킹 조회 (순위 변동 비교용) ─────────────────────────────────
     from exporters import notion_exporter
@@ -117,6 +124,21 @@ def run(dry_run: bool = False) -> None:
     brand_result = _run("브랜드 트래킹", brand_tracker.analyze, today_rankings, yesterday_rankings) or []
     signals      = _run("기획전 시그널 감지", timing_signal.detect, trend_data, rank_result, archive_data) or []
 
+    # 신규 진입 리뷰 키워드 분석
+    from analyzers import review_keywords, steady_seller, trend_forecast
+    reviewed_entries = _run("리뷰 키워드 분석", review_keywords.analyze_batch, new_entries[:10]) or []
+
+    # 스테디셀러 감지 (노션 데이터 기반)
+    steady = []
+    if config.NOTION_API_KEY and config.NOTION_RANKING_DB_ID:
+        from notion_client import Client
+        _nc = Client(auth=config.NOTION_API_KEY)
+        steady = _run("스테디셀러 감지", steady_seller.detect_from_notion,
+                      _nc, config.NOTION_RANKING_DB_ID) or []
+
+    # 트렌드 예측
+    forecasts = _run("트렌드 예측", trend_forecast.forecast_from_trend_data, [trend_data]) or []
+
     # ── 4. 저장 ───────────────────────────────────────────────────────────────
     if not dry_run:
         # 노션 저장
@@ -139,6 +161,7 @@ def run(dry_run: bool = False) -> None:
         "HTML 대시보드 생성",
         dashboard.generate,
         rank_result, trend_data, price_result, brand_result, signals,
+        weather_data, keyword_data, forecasts, steady,
     )
 
     # ── 6. 카카오 일일 요약 발송 ──────────────────────────────────────────────

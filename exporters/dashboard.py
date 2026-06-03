@@ -8,8 +8,8 @@ data/dashboard.html 에 매일 덮어쓰기 저장.
 import json
 import logging
 import os
+from typing import Dict, List, Optional
 from datetime import datetime, timezone
-from typing import Dict, List
 
 import config
 
@@ -160,12 +160,100 @@ def _brand_rows(brand_data: List[Dict]) -> str:
 
 # ── 공개 인터페이스 ────────────────────────────────────────────────────────────
 
+def _weather_block(weather_data: Dict) -> str:
+    if not weather_data:
+        return ""
+    sig = weather_data.get("category_signal", {})
+    sig_html = " | ".join(f"<b>{cat}</b>: {v}" for cat, v in sig.items())
+    fc = weather_data.get("forecast_3d", [])
+    fc_html = " → ".join(
+        f"{f['date'][-5:]} {f['temp_max']:.0f}°/{f['temp_min']:.0f}° {f['weather']}"
+        for f in fc
+    )
+    return f"""
+  <div class="section">
+    <h2>🌤 오늘의 날씨 & 패션 수요 예측</h2>
+    <p style="font-size:18px;margin-bottom:8px">
+      <b>{weather_data.get('current_temp')}°C</b>
+      <span style="color:#888;font-size:14px"> (체감 {weather_data.get('apparent_temp')}°C) / {weather_data.get('weather_label')} / 최고 {weather_data.get('temp_max')}°C</span>
+    </p>
+    <p style="margin-bottom:6px">📊 카테고리별 수요 신호: {sig_html}</p>
+    <p style="color:#888;font-size:13px">3일 예보: {fc_html}</p>
+  </div>"""
+
+
+def _keyword_table(keyword_data: List[Dict]) -> str:
+    if not keyword_data:
+        return '<p class="empty">데이터 없음</p>'
+    rows = sorted([k for k in keyword_data if k.get("platform") == "무신사_검색어"],
+                  key=lambda x: x.get("rank", 999))[:20]
+    if not rows:
+        return '<p class="empty">검색어 데이터 없음</p>'
+    trs = []
+    for r in rows:
+        fluct = r.get("fluctuation_label","→")
+        amt   = r.get("fluctuation_amount", 0)
+        color = "#27ae60" if "▲" in fluct else ("#e74c3c" if "▼" in fluct else "#888")
+        badge = f'<span style="color:{color};font-weight:bold">{fluct}{amt if amt else ""}</span>'
+        if "NEW" in fluct:
+            badge = '<span style="background:#ede0ff;color:#7d3c98;padding:2px 6px;border-radius:10px;font-size:11px">NEW</span>'
+        trs.append(f"<tr><td>{r['rank']}</td><td>{badge}</td><td>{r['keyword']}</td></tr>")
+    return f"""<table>
+      <thead><tr><th>#</th><th>변동</th><th>검색어</th></tr></thead>
+      <tbody>{"".join(trs)}</tbody></table>"""
+
+
+def _forecast_table(forecasts: List[Dict]) -> str:
+    if not forecasts:
+        return '<p class="empty">예측 데이터 없음 (데이터 축적 후 정확도 향상)</p>'
+    rows = forecasts[:10]
+    trs = []
+    for f in rows:
+        dir_color = {"↑상승": "#27ae60", "↓하락": "#e74c3c", "→유지": "#888"}.get(
+            f.get("trend_direction","→유지"), "#888")
+        conf_bg = {"높음": "#d4f5e2", "보통": "#fff3cd", "낮음": "#f0f0f0"}.get(
+            f.get("confidence","낮음"), "#f0f0f0")
+        trs.append(
+            f'<tr><td>{f["keyword"]}</td>'
+            f'<td style="color:{dir_color};font-weight:bold">{f["trend_direction"]}</td>'
+            f'<td>{f["forecast_score"]}</td>'
+            f'<td style="background:{conf_bg};border-radius:10px;padding:2px 8px;font-size:11px">'
+            f'{f["confidence"]}</td></tr>'
+        )
+    return f"""<table>
+      <thead><tr><th>키워드</th><th>트렌드</th><th>예측점수</th><th>신뢰도</th></tr></thead>
+      <tbody>{"".join(trs)}</tbody></table>"""
+
+
+def _steady_seller_rows(steady: List[Dict]) -> str:
+    if not steady:
+        return '<p class="empty">데이터 축적 중 (2주 이상 수집 후 표시)</p>'
+    rows = steady[:10]
+    trs = []
+    for s in rows:
+        badge = "🏆" if s.get("is_steady") else "📈"
+        trs.append(
+            f'<tr><td>{badge}</td>'
+            f'<td><a href="{s.get("url","#")}" target="_blank">{s.get("product_name","")[:25]}</a></td>'
+            f'<td>{s.get("brand","")}</td>'
+            f'<td>{s.get("appearances",0)}회</td>'
+            f'<td>{s.get("best_rank","-")}위</td></tr>'
+        )
+    return f"""<table>
+      <thead><tr><th></th><th>상품명</th><th>브랜드</th><th>등장</th><th>최고순위</th></tr></thead>
+      <tbody>{"".join(trs)}</tbody></table>"""
+
+
 def generate(
     rank_diff_result: Dict,
     trend_data: List[Dict],
     price_result: Dict,
     brand_data: List[Dict],
     signals: List[Dict],
+    weather_data: Optional[Dict] = None,
+    keyword_data: Optional[List[Dict]] = None,
+    forecasts: Optional[List[Dict]] = None,
+    steady: Optional[List[Dict]] = None,
 ) -> str:
     """
     대시보드 HTML 생성 후 파일 저장.
@@ -345,6 +433,29 @@ def generate(
       <thead><tr><th>브랜드</th><th>랭킹 내 상품수</th><th>최고 순위</th><th>전일 대비</th></tr></thead>
       <tbody>{_brand_rows(brand_data)}</tbody>
     </table>
+  </div>
+
+  {_weather_block(weather_data or {{}})}
+
+  <!-- 무신사 검색어 랭킹 + 트렌드 예측 -->
+  <div class="section">
+    <h2>🔍 무신사 실시간 검색어 & 다음주 트렌드 예측</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <h3 style="font-size:14px;margin-bottom:8px;color:#555">실시간 검색어 TOP 20</h3>
+        {_keyword_table(keyword_data or [])}
+      </div>
+      <div>
+        <h3 style="font-size:14px;margin-bottom:8px;color:#555">트렌드 예측 (데이터 축적 중)</h3>
+        {_forecast_table(forecasts or [])}
+      </div>
+    </div>
+  </div>
+
+  <!-- 스테디셀러 -->
+  <div class="section">
+    <h2>🏆 스테디셀러 (연속 TOP 10)</h2>
+    {_steady_seller_rows(steady or [])}
   </div>
 
 </div>
