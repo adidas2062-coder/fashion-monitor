@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 
 KAKAO_REST_API_KEY = "deae5cadb2012e898946a7d03ab84358"
-REDIRECT_URI       = "https://localhost"
+REDIRECT_URI       = "http://localhost:8080"
 TOKEN_URL          = "https://kauth.kakao.com/oauth/token"
 CONFIG_PATH        = os.path.join(os.path.dirname(__file__), "config.py")
 

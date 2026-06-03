@@ -3,10 +3,14 @@
 
 실행하면:
   1. 브라우저에서 카카오 로그인 페이지가 열립니다.
-  2. 로그인 + 동의 후 카카오가 https://localhost?code=XXXX 로 리다이렉트합니다.
-  3. 브라우저가 "연결 거부" 오류를 보여주더라도 주소창 URL을 복사해 붙여넣으세요.
-     (로컬 HTTP 서버 자동 수신이 성공하면 수동 입력 불필요)
+  2. 로그인 + 동의 후 카카오가 http://localhost:8080?code=XXXX 로 리다이렉트합니다.
+  3. 로컬 서버가 코드를 자동 수신해 토큰을 발급합니다.
   4. 토큰이 config.py의 KAKAO_ACCESS_TOKEN 에 자동 저장됩니다.
+
+사전 설정 (1회):
+  카카오 디벨로퍼스 → 내 앱 → fashion-monitor
+  → 카카오 로그인 → Redirect URI 에 추가:
+      http://localhost:8080
 
 사용법:
     python3 kakao_auth.py
@@ -25,8 +29,8 @@ import json
 
 # ── 설정 ───────────────────────────────────────────────────────────────────────
 KAKAO_REST_API_KEY = "deae5cadb2012e898946a7d03ab84358"
-REDIRECT_URI       = "https://localhost"
-LOCAL_PORT         = 8080   # 자동 수신용 보조 포트 (redirect_uri 와 다름)
+REDIRECT_URI       = "http://localhost:8080"
+LOCAL_PORT         = 8080
 
 AUTH_URL   = "https://kauth.kakao.com/oauth/authorize"
 TOKEN_URL  = "https://kauth.kakao.com/oauth/token"
@@ -61,14 +65,13 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
 
 def _start_local_server():
-    """포트 8080에서 임시 HTTP 서버 시작 (백그라운드 스레드)."""
+    """포트 8080에서 임시 HTTP 서버 시작. 코드 수신까지 블로킹."""
     try:
         server = http.server.HTTPServer(("localhost", LOCAL_PORT), _Handler)
-        server.timeout = 120
-        t = threading.Thread(target=server.handle_request, daemon=True)
-        t.start()
+        server.timeout = 180   # 3분 대기
         return server
-    except OSError:
+    except OSError as e:
+        print(f"⚠️  포트 {LOCAL_PORT} 사용 불가: {e}")
         return None
 
 
@@ -140,37 +143,28 @@ def main():
     print("=" * 60)
     print()
 
-    # 로컬 서버 시작 (https://localhost 리다이렉트이므로 자동 수신 불가,
-    # 하지만 혹시 http://localhost:8080 으로도 콜백이 오면 잡기 위해 유지)
     server = _start_local_server()
+
     if server:
-        print(f"[보조] 로컬 서버 시작 (port {LOCAL_PORT})")
+        print(f"✅ 로컬 서버 시작 (http://localhost:{LOCAL_PORT})")
+        print("\n[1] 브라우저에서 카카오 로그인 페이지가 열립니다.")
+        print("[2] 카카오 계정으로 로그인 후 '동의하고 계속하기'를 클릭하세요.")
+        print("[3] 인증 완료 시 이 터미널에 자동으로 토큰이 저장됩니다.")
+        print()
+        time.sleep(1)
+        webbrowser.open(auth_url)
 
-    print("\n[1] 브라우저에서 카카오 로그인 페이지가 열립니다.")
-    print("[2] 카카오 계정으로 로그인 후 '동의하고 계속하기'를 클릭하세요.")
-    print("[3] 리다이렉트 후 브라우저 주소창에 다음과 같은 URL이 표시됩니다:")
-    print("      https://localhost?code=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-    print("    → '연결 거부' 오류가 떠도 괜찮습니다. 주소창 URL을 복사하세요.")
-    print()
+        # 서버가 요청 1개를 받을 때까지 블로킹 대기
+        print("⏳ 카카오 인증 대기 중 (최대 3분)...")
+        server.handle_request()   # 코드 수신 시 _received_code 에 저장됨
 
-    time.sleep(1)
-    webbrowser.open(auth_url)
+        if not _received_code:
+            print("⚠️  자동 수신 실패 — 수동 입력으로 전환합니다.")
 
-    # 자동 수신 대기 (최대 5초)
-    for _ in range(10):
-        time.sleep(0.5)
-        if _received_code:
-            break
-
-    if _received_code:
-        code = _received_code[0]
-        print(f"\n✅ 인증 코드 자동 수신: {code[:10]}...")
-    else:
-        print("\n브라우저에서 리다이렉트된 URL 전체를 붙여넣으세요.")
-        print("예) https://localhost?code=XXXXX&state=...\n")
+    if not _received_code:
+        print("\n브라우저 주소창의 URL 전체 또는 code 값만 붙여넣으세요.")
+        print("예) http://localhost:8080?code=XXXXX\n")
         raw = input("URL 또는 code 값: ").strip()
-
-        # URL 전체 또는 code 값만 입력 모두 허용
         if raw.startswith("http"):
             parsed = urllib.parse.urlparse(raw)
             params = urllib.parse.parse_qs(parsed.query)
@@ -180,6 +174,9 @@ def main():
                 sys.exit(1)
         else:
             code = raw
+    else:
+        code = _received_code[0]
+        print(f"\n✅ 인증 코드 자동 수신 완료")
 
     print("\n[4] 액세스 토큰 교환 중...")
     try:
