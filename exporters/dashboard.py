@@ -45,7 +45,7 @@ def _signal_cards(signals: List[Dict]) -> str:
 
 
 def _ranking_table(items: List[Dict], cat_prefix: str, period: str = "1일") -> str:
-    """cat_prefix 로 시작하는 카테고리 중 period 일치 항목의 TOP 10 반환."""
+    """cat_prefix 로 시작하는 카테고리 중 period 일치 항목의 TOP 30 반환."""
     # 대분류_전체 우선, 없으면 대분류_ 시작하는 전체 아이템에서 rank 오름차순
     full_cat = f"{cat_prefix}_전체"
     rows = [i for i in items
@@ -170,52 +170,52 @@ def generate(
     trend_json = _trend_chart_data(trend_data)
     price_json = _price_chart_data(price_result)
 
-    # 기간 × 대분류 조합으로 랭킹 데이터 인덱싱
-    # key: "1일|상의", "주간|아우터" 등 → TOP10 상품 목록
-    _MAIN_CATS = {"상의": "상의", "아우터": "아우터", "바지": "바지"}
+    # 기간 × 카테고리(대분류 + 세분류) 인덱싱
+    # key 예시: "1일|상의", "주간|상의_반소매티셔츠", "월간|아우터_후드집업"
+    _MAIN_CATS = ["상의", "아우터", "바지"]
     ranking_index: dict = {}
+
+    def _to_row(i):
+        return {
+            "rank":          i.get("rank"),
+            "rank_change":   i.get("rank_change"),
+            "product_name":  i.get("product_name", ""),
+            "brand":         i.get("brand", ""),
+            "price":         i.get("price", 0),
+            "discount_rate": i.get("discount_rate", 0),
+            "url":           i.get("url", ""),
+            "category":      i.get("category", ""),
+            "period":        i.get("period", ""),
+        }
+
     for item in items:
-        cat  = item.get("category", "")
+        cat    = item.get("category", "")
         period = item.get("period", "1일")
         for main in _MAIN_CATS:
-            if cat.startswith(main + "_"):
-                key = f"{period}|{main}"
-                ranking_index.setdefault(key, [])
-                if len(ranking_index[key]) < 30:
-                    # 전체 서브카테고리 중 rank 낮은(좋은) 것 우선 — 전체 수집 후 정렬
-                    ranking_index[key].append({
-                        "rank":          item.get("rank"),
-                        "rank_change":   item.get("rank_change"),
-                        "product_name":  item.get("product_name", ""),
-                        "brand":         item.get("brand", ""),
-                        "price":         item.get("price", 0),
-                        "discount_rate": item.get("discount_rate", 0),
-                        "url":           item.get("url", ""),
-                        "category":      cat,
-                        "period":        period,
-                    })
-                break
-    # 전체 서브카테고리 데이터를 전체(_전체) 우선, 나머지는 rank 오름차순 정렬
+            if not cat.startswith(main + "_"):
+                continue
+            sub = cat[len(main) + 1:]   # e.g. "전체", "반소매티셔츠"
+
+            # 대분류 전체 key (전체 서브카테고리 집계용)
+            main_key = f"{period}|{main}"
+            # 세분류별 key
+            sub_key  = f"{period}|{main}_{sub}" if sub != "전체" else main_key
+
+            # 세분류 key 직접 저장
+            ranking_index.setdefault(sub_key, [])
+            ranking_index[sub_key].append(_to_row(item))
+
+            # 대분류 "전체" key에는 _전체 서브카테고리만
+            if sub == "전체":
+                ranking_index.setdefault(main_key, [])
+                ranking_index[main_key].append(_to_row(item))
+            break
+
+    # rank 오름차순 정렬, TOP 30 제한
     for key in ranking_index:
-        period_k, main_k = key.split("|")
-        full_cat = f"{main_k}_전체"
-        full_items = [i for i in items
-                      if i.get("category") == full_cat and i.get("period") == period_k]
-        if full_items:
-            full_items.sort(key=lambda x: x.get("rank", 999))
-            ranking_index[key] = [{
-                "rank":          i.get("rank"),
-                "rank_change":   i.get("rank_change"),
-                "product_name":  i.get("product_name", ""),
-                "brand":         i.get("brand", ""),
-                "price":         i.get("price", 0),
-                "discount_rate": i.get("discount_rate", 0),
-                "url":           i.get("url", ""),
-                "category":      i.get("category", ""),
-                "period":        i.get("period", ""),
-            } for i in full_items[:30]]
-        else:
-            ranking_index[key].sort(key=lambda x: x.get("rank", 999))
+        ranking_index[key].sort(key=lambda x: x.get("rank") or 999)
+        ranking_index[key] = ranking_index[key][:30]
+
     ranking_json = json.dumps(ranking_index, ensure_ascii=False)
 
     html = f"""<!DOCTYPE html>
@@ -290,21 +290,27 @@ def generate(
     </div>
   </div>
 
-  <!-- 무신사 랭킹 TOP 10 -->
+  <!-- 무신사 랭킹 TOP 30 -->
   <div class="section">
-    <h2>🏆 무신사 랭킹 TOP 10</h2>
-    <div style="display:flex;gap:16px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-      <div class="tabs" id="period-tabs">
-        <div class="tab active" onclick="switchPeriod('1일',this)">1일</div>
-        <div class="tab" onclick="switchPeriod('주간',this)">주간</div>
-        <div class="tab" onclick="switchPeriod('월간',this)">월간</div>
-      </div>
-      <div class="tabs" id="cat-tabs">
-        <div class="tab active" onclick="switchCat('상의',this)">상의</div>
-        <div class="tab" onclick="switchCat('아우터',this)">아우터</div>
-        <div class="tab" onclick="switchCat('바지',this)">바지</div>
-      </div>
+    <h2>🏆 무신사 랭킹 TOP 30</h2>
+
+    <!-- 기간 탭 -->
+    <div class="tabs" id="period-tabs" style="margin-bottom:10px">
+      <div class="tab active" onclick="switchPeriod('1일',this)">1일</div>
+      <div class="tab" onclick="switchPeriod('주간',this)">주간</div>
+      <div class="tab" onclick="switchPeriod('월간',this)">월간</div>
     </div>
+
+    <!-- 대분류 탭 -->
+    <div class="tabs" id="main-cat-tabs" style="margin-bottom:6px">
+      <div class="tab active" onclick="switchMainCat('상의',this)">상의</div>
+      <div class="tab" onclick="switchMainCat('아우터',this)">아우터</div>
+      <div class="tab" onclick="switchMainCat('바지',this)">바지</div>
+    </div>
+
+    <!-- 세분류 탭 (대분류 선택 시 동적 렌더링) -->
+    <div id="sub-cat-tabs" class="tabs" style="margin-bottom:12px;flex-wrap:wrap"></div>
+
     <div id="ranking-table-area">
       {_ranking_table(items,'상의','1일')}
     </div>
@@ -342,13 +348,26 @@ def generate(
 // 랭킹 데이터 (기간 × 카테고리 × 상품 목록)
 const rankingData = {ranking_json};
 
+// 세분류 정의
+const subCats = {{
+  '상의':  ['전체','반소매티셔츠','긴소매티셔츠','맨투맨스웨트','후드티셔츠','셔츠블라우스','니트스웨터','피케카라티','민소매티셔츠'],
+  '아우터': ['전체','후드집업','블루종MA1','슈트블레이저','나일론코치','카디건','사파리헌팅','트러커재킷','환절기코트','플리스뽀글이','레더라이더스'],
+  '바지':  ['전체','데님팬츠','트레이닝조거','슈트슬랙스','숏팬츠','코튼팬츠'],
+}};
+
 let currentPeriod = '1일';
-let currentCat = '상의';
+let currentMainCat = '상의';
+let currentSubCat = '전체';
 
 function renderRankingTable() {{
   const area = document.getElementById('ranking-table-area');
-  const key = currentPeriod + '|' + currentCat;
+  // 세분류가 '전체'면 대분류 key, 아니면 대분류_세분류 key
+  const catKey = currentSubCat === '전체'
+    ? currentMainCat
+    : currentMainCat + '_' + currentSubCat;
+  const key = currentPeriod + '|' + catKey;
   const rows = rankingData[key] || [];
+
   if (!rows.length) {{
     area.innerHTML = '<p class="empty">데이터 없음 (수집 후 표시됩니다)</p>';
     return;
@@ -362,7 +381,7 @@ function renderRankingTable() {{
     else if (ch < 0) badge = '<span class="badge down">▼' + Math.abs(ch) + '</span>';
     else badge = '<span class="badge same">→</span>';
     const disc = r.discount_rate ? '<span class="disc">-' + r.discount_rate + '%</span>' : '';
-    const subcat = (r.category || '').replace(currentCat + '_', '');
+    const subcat = (r.category || '').replace(currentMainCat + '_', '');
     html += '<tr>';
     html += '<td>' + r.rank + '</td>';
     html += '<td>' + badge + '</td>';
@@ -376,6 +395,14 @@ function renderRankingTable() {{
   area.innerHTML = html;
 }}
 
+function renderSubCatTabs() {{
+  const container = document.getElementById('sub-cat-tabs');
+  const subs = subCats[currentMainCat] || [];
+  container.innerHTML = subs.map(s =>
+    '<div class="tab sub-tab' + (s === currentSubCat ? ' active' : '') + '" onclick="switchSubCat(\'' + s + '\',this)">' + s + '</div>'
+  ).join('');
+}}
+
 function switchPeriod(period, el) {{
   currentPeriod = period;
   document.querySelectorAll('#period-tabs .tab').forEach(t => t.classList.remove('active'));
@@ -383,13 +410,28 @@ function switchPeriod(period, el) {{
   renderRankingTable();
 }}
 
-function switchCat(cat, el) {{
-  currentCat = cat;
-  document.querySelectorAll('#cat-tabs .tab').forEach(t => t.classList.remove('active'));
+function switchMainCat(cat, el) {{
+  currentMainCat = cat;
+  currentSubCat = '전체';
+  document.querySelectorAll('#main-cat-tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderSubCatTabs();
+  renderRankingTable();
+}}
+
+function switchSubCat(sub, el) {{
+  currentSubCat = sub;
+  document.querySelectorAll('#sub-cat-tabs .tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   renderRankingTable();
 }}
 
+// 세분류 탭 스타일
+const subStyle = document.createElement('style');
+subStyle.textContent = '.sub-tab {{ font-size:12px; padding:4px 10px; background:#f5f5f5; border-color:#ddd; }}';
+document.head.appendChild(subStyle);
+
+renderSubCatTabs();
 renderRankingTable();
 
 // 트렌드 차트
