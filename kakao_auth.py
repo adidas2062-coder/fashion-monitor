@@ -46,10 +46,12 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(b"""<html><body style="font-family:sans-serif;text-align:center;padding:60px">
-            <h2>&#10003; 카카오 인증 완료!</h2>
-            <p>이 창을 닫고 터미널로 돌아가세요.</p>
-            </body></html>""")
+            self.wfile.write(
+                "<html><body style='font-family:sans-serif;text-align:center;padding:60px'>"
+                "<h2>&#10003; 카카오 인증 완료!</h2>"
+                "<p>이 창을 닫고 터미널로 돌아가세요.</p>"
+                "</body></html>".encode("utf-8")
+            )
         else:
             self.send_response(400)
             self.end_headers()
