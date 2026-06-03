@@ -39,6 +39,7 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.py")
 
 # ── 로컬 서버 (자동 코드 수신 시도) ──────────────────────────────────────────
 _received_code: list = []
+_received_redirect_uri: list = []   # 실제 수신된 redirect_uri 저장
 
 class _Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -46,7 +47,10 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         params = urllib.parse.parse_qs(parsed.query)
         code   = params.get("code", [None])[0]
         if code:
+            # 실제 요청에서 redirect_uri 재구성 (trailing slash 포함 여부 그대로)
+            actual_redirect = f"http://localhost:{LOCAL_PORT}{parsed.path.rstrip('/')}"
             _received_code.append(code)
+            _received_redirect_uri.append(actual_redirect)
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -176,11 +180,28 @@ def main():
             code = raw
     else:
         code = _received_code[0]
+        # 실제 수신된 redirect_uri 사용 (등록된 값과 정확히 일치)
+        if _received_redirect_uri:
+            actual_redirect = _received_redirect_uri[0]
+            if actual_redirect != REDIRECT_URI:
+                print(f"ℹ️  실제 redirect_uri: {actual_redirect}")
+                # 전역 변수 업데이트
+                globals()["REDIRECT_URI"] = actual_redirect
         print(f"\n✅ 인증 코드 자동 수신 완료")
 
     print("\n[4] 액세스 토큰 교환 중...")
     try:
         token_data = _exchange_code(code)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        print(f"❌ 토큰 교환 실패 (HTTP {e.code})")
+        print(f"   상세: {body}")
+        print()
+        print("가능한 원인:")
+        print("  1. Kakao 디벨로퍼스 → Redirect URI 에 http://localhost:8080 이 등록됐는지 확인")
+        print("  2. 카카오 로그인 활성화 여부 확인")
+        print("  3. 동의항목 → 카카오톡 메시지 전송 필수 동의 확인")
+        sys.exit(1)
     except Exception as e:
         print(f"❌ 토큰 교환 실패: {e}")
         sys.exit(1)
