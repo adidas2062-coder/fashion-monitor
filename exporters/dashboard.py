@@ -399,7 +399,7 @@ function renderSubCatTabs() {{
   const container = document.getElementById('sub-cat-tabs');
   const subs = subCats[currentMainCat] || [];
   container.innerHTML = subs.map(s =>
-    '<div class="tab sub-tab' + (s === currentSubCat ? ' active' : '') + '" onclick="switchSubCat(\'' + s + '\',this)">' + s + '</div>'
+    `<div class="tab sub-tab${{s === currentSubCat ? ' active' : ''}}" onclick="switchSubCat('${{s}}',this)">${{s}}</div>`
   ).join('');
 }}
 
