@@ -181,7 +181,7 @@ def generate(
             if cat.startswith(main + "_"):
                 key = f"{period}|{main}"
                 ranking_index.setdefault(key, [])
-                if len(ranking_index[key]) < 10:
+                if len(ranking_index[key]) < 30:
                     # 전체 서브카테고리 중 rank 낮은(좋은) 것 우선 — 전체 수집 후 정렬
                     ranking_index[key].append({
                         "rank":          item.get("rank"),
@@ -213,7 +213,7 @@ def generate(
                 "url":           i.get("url", ""),
                 "category":      i.get("category", ""),
                 "period":        i.get("period", ""),
-            } for i in full_items[:10]]
+            } for i in full_items[:30]]
         else:
             ranking_index[key].sort(key=lambda x: x.get("rank", 999))
     ranking_json = json.dumps(ranking_index, ensure_ascii=False)
