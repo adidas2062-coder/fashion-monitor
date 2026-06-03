@@ -189,7 +189,7 @@ def enrich(new_entries: List[Dict]) -> List[Dict]:
     enriched: List[Dict] = []
     for i, item in enumerate(new_entries):
         if i > 0:
-            time.sleep(config.REQUEST_DELAY)
+            time.sleep(config.REQUEST_DELAY * 2)   # 429 방지: 일반 딜레이의 2배
 
         url = item.get("url", "")
         if not url:

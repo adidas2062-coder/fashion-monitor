@@ -83,7 +83,13 @@ def run(dry_run: bool = False) -> None:
     }
     time.sleep(0.5)
 
-    new_entries  = _run("신규 진입 상품 상세 수집", new_entry.enrich, rank_result.get("new_entries", [])) or []
+    # 신규 진입 상세 수집 — 어제 데이터 없는 첫 실행 시 전체가 신규가 되므로 상한 적용
+    _MAX_NEW_ENTRY_DETAIL = 30
+    raw_new = rank_result.get("new_entries", [])
+    if len(raw_new) > _MAX_NEW_ENTRY_DETAIL:
+        logger.info("신규 진입 %d건 중 상위 %d건만 상세 수집 (첫 실행 또는 대량 진입)", len(raw_new), _MAX_NEW_ENTRY_DETAIL)
+        raw_new = raw_new[:_MAX_NEW_ENTRY_DETAIL]
+    new_entries  = _run("신규 진입 상품 상세 수집", new_entry.enrich, raw_new) or []
     time.sleep(config.REQUEST_DELAY)
 
     price_result = _run("가격대 분포 분석", price_analysis.analyze, today_rankings, yesterday_rankings) or {}
