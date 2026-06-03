@@ -33,13 +33,22 @@ def _signal_cards(signals: List[Dict]) -> str:
         return '<p class="empty">감지된 시그널 없음</p>'
     parts = []
     for s in signals:
-        rank_txt = "NEW" if s.get("is_new_entry") else f"▲{s.get('rank_change',0)}"
+        rank_txt = "NEW" if s.get("is_new_entry") else (f"▲{s.get('rank_change',0)}" if s.get("rank_change") else "-")
+        level    = s.get("level", "🟢 참고")
+        score    = s.get("score", 0)
+        issues   = s.get("issues", [])
+        issue_html = "".join(f'<span class="issue-tag">{i}</span>' for i in issues)
+        level_color = {"🔴": "#e74c3c", "🟡": "#f39c12", "🟢": "#27ae60"}.get(level[:2], "#888")
         parts.append(f"""
-        <div class="signal-card">
-          <h3>🎯 {s.get('keyword','')}</h3>
+        <div class="signal-card" style="border-color:{level_color}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <h3 style="color:{level_color}">{level} {s.get('keyword','')}</h3>
+            <span style="background:{level_color};color:#fff;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:bold">{score}점</span>
+          </div>
           <p>트렌드 +{s.get('trend_pct',0):.0f}% | 랭킹 {rank_txt}</p>
-          <p class="theme">→ {s.get('theme','')}</p>
-          <p class="meta">{s.get('brand','')} / {s.get('category','')}</p>
+          <p class="theme" style="margin:4px 0">→ {s.get('theme','')}</p>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">{issue_html}</div>
+          <p class="meta" style="margin-top:4px">{s.get('brand','')} / {s.get('category','')}</p>
         </div>""")
     return "\n".join(parts)
 
@@ -196,19 +205,14 @@ def generate(
                 continue
             sub = cat[len(main) + 1:]   # e.g. "전체", "반소매티셔츠"
 
-            # 대분류 전체 key (전체 서브카테고리 집계용)
-            main_key = f"{period}|{main}"
-            # 세분류별 key
-            sub_key  = f"{period}|{main}_{sub}" if sub != "전체" else main_key
-
-            # 세분류 key 직접 저장
-            ranking_index.setdefault(sub_key, [])
-            ranking_index[sub_key].append(_to_row(item))
-
-            # 대분류 "전체" key에는 _전체 서브카테고리만
+            # 세분류별 key: 전체 → "1일|상의", 나머지 → "1일|상의_반소매티셔츠"
             if sub == "전체":
-                ranking_index.setdefault(main_key, [])
-                ranking_index[main_key].append(_to_row(item))
+                key = f"{period}|{main}"
+            else:
+                key = f"{period}|{main}_{sub}"
+
+            ranking_index.setdefault(key, [])
+            ranking_index[key].append(_to_row(item))
             break
 
     # rank 오름차순 정렬, TOP 30 제한
@@ -273,6 +277,7 @@ def generate(
   .chart-row {{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }}
   @media(max-width:700px){{ .chart-row{{ grid-template-columns:1fr; }} }}
   .empty {{ color:#aaa; font-style:italic; }}
+  .issue-tag {{ background:#fff3cd; color:#856404; border:1px solid #ffc107; border-radius:12px; padding:2px 8px; font-size:11px; }}
 </style>
 </head>
 <body>

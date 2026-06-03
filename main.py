@@ -83,6 +83,10 @@ def run(dry_run: bool = False) -> None:
 
     insta_data   = _run("인스타그램 수집", instagram.collect) or []
 
+    # 작년 동기 아카이브 (YoY 비교용 — 매일 수집)
+    from collectors import musinsa_archive
+    archive_data = _run("작년 동기 아카이브 수집", musinsa_archive.collect) or []
+
     trend_data   = google_data + naver_data + insta_data
     logger.info("트렌드 데이터 합계: %d건", len(trend_data))
 
@@ -111,7 +115,7 @@ def run(dry_run: bool = False) -> None:
 
     price_result = _run("가격대 분포 분석", price_analysis.analyze, today_rankings, yesterday_rankings) or {}
     brand_result = _run("브랜드 트래킹", brand_tracker.analyze, today_rankings, yesterday_rankings) or []
-    signals      = _run("기획전 시그널 감지", timing_signal.detect, trend_data, rank_result) or []
+    signals      = _run("기획전 시그널 감지", timing_signal.detect, trend_data, rank_result, archive_data) or []
 
     # ── 4. 저장 ───────────────────────────────────────────────────────────────
     if not dry_run:
