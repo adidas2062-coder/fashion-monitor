@@ -199,8 +199,8 @@ def _keyword_table(keyword_data: List[Dict]) -> str:
             badge = '<span style="background:#ede0ff;color:#7d3c98;padding:2px 6px;border-radius:10px;font-size:11px">NEW</span>'
         return f"<tr><td>{r['rank']}</td><td>{badge}</td><td>{r['keyword']}</td></tr>"
 
-    initial = rows[:10]
-    extra   = rows[10:]
+    initial = rows[:5]
+    extra   = rows[5:]
     initial_html = "".join(_row_html(r) for r in initial)
     extra_html   = "".join(_row_html(r) for r in extra)
 
