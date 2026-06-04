@@ -86,69 +86,113 @@ def send_daily_summary(
     rank_diff_result: Dict,
     trend_data: List[Dict],
     signals: List[Dict],
+    weather_data: Optional[Dict] = None,
+    cm29_data: Optional[List[Dict]] = None,
 ) -> bool:
-    """
-    일일 요약 알림 발송.
+    """일일 요약 알림 발송."""
+    from datetime import datetime, timezone, timedelta
+    kst_now   = datetime.now(timezone.utc) + timedelta(hours=9)
+    today_str = kst_now.strftime("%m.%d")
 
-    Args:
-        rank_diff_result: rank_diff.analyze() 결과.
-        trend_data:       google_trends + naver_datalab 통합 데이터.
-        signals:          timing_signal.detect() 결과.
-    """
-    today_str = date.today().strftime("%m.%d")
+    # ── 날씨 ─────────────────────────────────────────────────────────────────
+    if weather_data:
+        wx_sig = weather_data.get("category_signal", {})
+        sig_str = " / ".join(f"{k.replace('_전체','')}: {v}" for k,v in wx_sig.items())
+        wx_line = f"☀️ {weather_data.get('current_temp')}°C ({weather_data.get('weather_label')}) — {sig_str}"
+    else:
+        wx_line = ""
 
-    # ── 급등 트렌드 키워드 (변화율 큰 순 TOP 3) ──────────────────────────────
+    # ── 급등 트렌드 키워드 TOP 3 ─────────────────────────────────────────────
     trend_sorted = sorted(
-        [t for t in trend_data if t.get("change_pct", 0) > 0],
-        key=lambda x: x["change_pct"],
-        reverse=True,
+        [t for t in trend_data if t.get("change_pct", 0) > 0
+         and t.get("platform") not in ("구글_트렌딩", "무신사_검색어")],
+        key=lambda x: x["change_pct"], reverse=True,
     )
-    trend_lines: List[str] = []
+    trend_lines = []
     for t in trend_sorted[:3]:
-        pct = t["change_pct"]
-        kw  = t["keyword"]
-        platform = "구글" if "구글" in t.get("platform", "") else "네이버"
-        trend_lines.append(f"  {platform}: {kw} +{pct:.0f}%")
-    trend_block = "\n".join(trend_lines) if trend_lines else "  (수집 데이터 없음)"
+        pf = "구글" if "구글" in t.get("platform","") else "네이버"
+        trend_lines.append(f"  {pf}: {t['keyword']} +{t['change_pct']:.0f}%")
+    trend_block = "\n".join(trend_lines) if trend_lines else "  (데이터 수집 중)"
 
-    # ── 신규 진입 상품 TOP 3 ─────────────────────────────────────────────────
-    new_entries = rank_diff_result.get("new_entries", [])[:3]
-    new_lines: List[str] = []
-    for item in new_entries:
-        price = f"{item.get('price', 0):,}원"
-        new_lines.append(f"  {item.get('product_name','')[:15]} / {item.get('brand','')} / {price}")
-    new_block = "\n".join(new_lines) if new_lines else "  없음"
+    # ── 무신사 실검 TOP 5 ─────────────────────────────────────────────────────
+    kw_items = sorted(
+        [t for t in trend_data if t.get("platform") == "무신사_검색어"],
+        key=lambda x: x.get("rank", 999),
+    )[:5]
+    kw_block = "  " + " · ".join(
+        f"{k['rank']}위 {k['keyword']}" + (
+            f"({'▲' if k.get('fluctuation_type')=='UP' else '▼' if k.get('fluctuation_type')=='DOWN' else ''})"
+            if k.get("fluctuation_type") not in ("NONE", None) else ""
+        )
+        for k in kw_items
+    ) if kw_items else "  없음"
 
-    # ── 전체 TOP 3 ────────────────────────────────────────────────────────────
-    top_items = sorted(
-        rank_diff_result.get("items", []),
+    # ── 무신사 상의 1일 TOP 3 ─────────────────────────────────────────────────
+    musinsa_top = sorted(
+        [i for i in rank_diff_result.get("items", [])
+         if i.get("category") == "상의_전체" and i.get("period") == "1일"],
         key=lambda x: x.get("rank", 999),
     )[:3]
-    top_lines: List[str] = []
-    for item in top_items:
-        change = _fmt_rank_change(item.get("rank_change"), item.get("rank_change") is None)
-        top_lines.append(
-            f"  {item['rank']}위 {item.get('product_name','')[:15]} / {item.get('brand','')} {change}"
+    musinsa_lines = []
+    for item in musinsa_top:
+        ch = _fmt_rank_change(item.get("rank_change"), item.get("rank_change") is None)
+        musinsa_lines.append(
+            f"  {item['rank']}위 {item.get('product_name','')[:14]} / {item.get('brand','')} {ch}"
         )
-    top_block = "\n".join(top_lines) if top_lines else "  없음"
+    musinsa_block = "\n".join(musinsa_lines) if musinsa_lines else "  없음"
+
+    # ── 29CM 남성 TOP 3 ───────────────────────────────────────────────────────
+    cm29_top = sorted(
+        [i for i in (cm29_data or []) if i.get("category") == "남성_전체"],
+        key=lambda x: x.get("rank", 999),
+    )[:3]
+    cm29_lines = []
+    for item in cm29_top:
+        disc = f" -{item['discount_rate']}%" if item.get("discount_rate") else ""
+        cm29_lines.append(
+            f"  {item['rank']}위 {item.get('product_name','')[:14]} / {item.get('brand','')}{disc}"
+        )
+    cm29_block = "\n".join(cm29_lines) if cm29_lines else "  없음"
+
+    # ── 신규 진입 TOP 3 ───────────────────────────────────────────────────────
+    new_entries = rank_diff_result.get("new_entries", [])[:3]
+    new_lines = []
+    for item in new_entries:
+        cat = item.get("category","").replace("_전체","")
+        new_lines.append(
+            f"  [{cat}] {item.get('product_name','')[:14]} / {item.get('brand','')} {item.get('price',0):,}원"
+        )
+    new_block = "\n".join(new_lines) if new_lines else "  없음"
 
     # ── 기획전 시그널 ─────────────────────────────────────────────────────────
-    signal_lines: List[str] = []
+    signal_lines = []
     for s in signals:
-        rank_txt = _fmt_rank_change(s.get("rank_change"), s.get("is_new_entry", False))
-        signal_lines.append(f"  {s['keyword']} — {s.get('theme','')} ({rank_txt})")
+        issues_str = " · ".join(s.get("issues", []))
+        signal_lines.append(
+            f"  {s['level']} [{s['keyword']}] 신뢰도{s.get('score',0)}점\n"
+            f"  → {s.get('theme','')} | 오픈: {s.get('open_label','')}\n"
+            f"  ⚠️ {issues_str}" if issues_str else
+            f"  {s['level']} [{s['keyword']}] → {s.get('theme','')} | 오픈: {s.get('open_label','')}"
+        )
     signal_block = "\n".join(signal_lines) if signal_lines else "  없음"
 
-    message = f"""[패션 모니터] {today_str} 오전 10시
-
-📈 오늘의 급등 키워드
+    # ── 메시지 조립 ───────────────────────────────────────────────────────────
+    wx_section = f"\n{wx_line}\n" if wx_line else ""
+    message = f"""[패션 모니터] {today_str} 일일 리포트{wx_section}
+📈 트렌드 급등 키워드
 {trend_block}
 
-⬆ 신규 진입 상품 ({len(new_entries)}개)
-{new_block}
+🔍 무신사 실검 TOP5
+{kw_block}
 
-🔥 TOP 3 (전체)
-{top_block}
+🏆 무신사 상의 1일 TOP3
+{musinsa_block}
+
+🛍 29CM 남성 TOP3
+{cm29_block}
+
+⬆ 신규 진입 ({len(new_entries)}건)
+{new_block}
 
 🎯 기획전 시그널
 {signal_block}"""
@@ -158,18 +202,29 @@ def send_daily_summary(
 
 def send_signal_alert(signal: Dict) -> bool:
     """기획전 시그널 즉시 단독 알림."""
-    rank_txt = _fmt_rank_change(signal.get("rank_change"), signal.get("is_new_entry", False))
-    level    = signal.get("level", "🟢 참고")
-    score    = signal.get("score", 0)
-    issues   = signal.get("issues", [])
-    issue_str = ("\n" + "\n".join(f"  ⚠️ {i}" for i in issues)) if issues else ""
-
+    rank_txt  = _fmt_rank_change(signal.get("rank_change"), signal.get("is_new_entry", False))
+    level     = signal.get("level", "🟢 참고")
+    score     = signal.get("score", 0)
+    issues    = signal.get("issues", [])
     open_label = signal.get("open_label", "")
-    message = f"""{level} 기획전 타이밍 시그널! (신뢰도 {score}점)
-키워드: {signal.get('keyword','')}
-- 트렌드 상승: +{signal.get('trend_pct',0):.0f}%
-- 무신사 랭킹: {signal.get('category','')} ({rank_txt}){issue_str}
-→ 추천 기획전 테마: {signal.get('theme','')}
-📅 권장 오픈일: {open_label}"""
+
+    # 이슈 요약
+    issue_str = ""
+    if issues:
+        issue_str = "\n  ⚠️ " + " / ".join(issues)
+
+    # YoY 정보
+    yoy = signal.get("yoy_last_rank")
+    yoy_str = f"\n  📊 작년 동기 최고순위: {yoy}위" if yoy else ""
+
+    message = f"""{level} 기획전 타이밍 시그널 감지! (신뢰도 {score}점)
+
+키워드: #{signal.get('keyword','')}
+트렌드: +{signal.get('trend_pct',0):.0f}% 상승{issue_str}{yoy_str}
+
+→ 추천 테마: {signal.get('theme','')}
+📅 권장 오픈일: {open_label}
+
+무신사 {signal.get('category','').replace('_전체','')} 랭킹 {rank_txt if rank_txt != '-' else '연관 상품 다수 진입'}"""
 
     return _send(message.strip())

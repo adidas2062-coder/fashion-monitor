@@ -189,7 +189,8 @@ def run(dry_run: bool = False) -> None:
     # ── 6. 카카오 일일 요약 발송 ──────────────────────────────────────────────
     if not dry_run:
         from exporters import kakao_notify
-        _run("카카오 일일 요약 발송", kakao_notify.send_daily_summary, rank_result, trend_data, signals)
+        _run("카카오 일일 요약 발송", kakao_notify.send_daily_summary,
+             rank_result, trend_data, signals, weather_data, cm29_data)
 
     # ── 7. 주간 리포트 (월요일만) ─────────────────────────────────────────────
     if date.today().weekday() == 0 and not dry_run:   # 0 = 월요일
