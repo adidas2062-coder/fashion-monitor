@@ -138,24 +138,64 @@ def _price_chart_data(price_result: Dict) -> str:
     return json.dumps({"labels": cats, "avgs": avgs}, ensure_ascii=False)
 
 
-def _brand_rows(brand_data: List[Dict]) -> str:
-    rows = [b for b in brand_data if b.get("product_count", 0) > 0]
-    if not rows:
-        return "<tr><td colspan='4'>관심 브랜드 랭킹 외</td></tr>"
+def _brand_section(brand_data: List[Dict]) -> str:
+    """관심 브랜드 현황 — 랭킹 진입 브랜드는 상품 목록까지 표시."""
+    in_ranking  = [b for b in brand_data if b.get("product_count", 0) > 0]
+    out_ranking = [b for b in brand_data if b.get("product_count", 0) == 0]
+
     parts = []
-    for b in rows:
-        cnt = b["product_count"]
-        best = f"{b.get('best_rank','-')}위 ({b.get('best_category','')})"
-        change = b.get("count_change")
-        change_str = f"+{change}" if change and change > 0 else (str(change) if change else "-")
-        parts.append(f"""
-        <tr>
-          <td><strong>{b['brand']}</strong></td>
-          <td>{cnt}개</td>
-          <td>{best}</td>
-          <td>{change_str}</td>
-        </tr>""")
-    return "".join(parts)
+
+    if in_ranking:
+        parts.append('<h3 style="font-size:13px;color:#27ae60;margin-bottom:8px">✅ 랭킹 진입</h3>')
+        for b in in_ranking:
+            cnt    = b["product_count"]
+            change = b.get("count_change")
+            change_str = (f'<span style="color:#27ae60">+{change}</span>' if change and change > 0
+                          else (f'<span style="color:#e74c3c">{change}</span>' if change and change < 0 else ""))
+            products   = b.get("products", [])
+
+            parts.append(f'<div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:10px">')
+            parts.append(f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">')
+            parts.append(f'<strong style="font-size:14px">{b["brand"]}</strong>')
+            parts.append(f'<span style="color:#888;font-size:12px">랭킹 내 {cnt}개 {change_str}</span>')
+            parts.append('</div>')
+
+            # 상품 목록 (최대 5개)
+            if products:
+                parts.append('<table style="width:100%;font-size:12px">')
+                parts.append('<tr style="color:#888"><td>순위</td><td>상품명</td><td>카테고리</td><td>가격</td></tr>')
+                for p in sorted(products, key=lambda x: x.get("rank",999))[:5]:
+                    rank_ch = p.get("rank_change")
+                    badge = ""
+                    if rank_ch is None:
+                        badge = '<span style="background:#ede0ff;color:#7d3c98;padding:1px 5px;border-radius:8px;font-size:10px">NEW</span>'
+                    elif rank_ch > 0:
+                        badge = f'<span style="color:#27ae60">▲{rank_ch}</span>'
+                    elif rank_ch < 0:
+                        badge = f'<span style="color:#e74c3c">▼{abs(rank_ch)}</span>'
+                    parts.append(
+                        f'<tr><td>{p.get("rank","-")}위 {badge}</td>'
+                        f'<td><a href="{p.get("url","#")}" target="_blank" style="color:#1a73e8">'
+                        f'{p.get("product_name","")[:22]}</a></td>'
+                        f'<td style="color:#888">{p.get("category","").replace("_전체","")}</td>'
+                        f'<td>{p.get("price",0):,}원</td></tr>'
+                    )
+                parts.append('</table>')
+            parts.append('</div>')
+
+    if out_ranking:
+        out_names = ", ".join(b["brand"] for b in out_ranking)
+        parts.append(f'<p style="color:#aaa;font-size:12px;margin-top:8px">랭킹 외: {out_names}</p>')
+
+    if not in_ranking and not out_ranking:
+        return '<p class="empty">브랜드 데이터 없음</p>'
+
+    return "\n".join(parts)
+
+
+def _brand_rows(brand_data: List[Dict]) -> str:
+    """레거시 — _brand_section으로 대체됨."""
+    return _brand_section(brand_data)
 
 
 def _cm29_table(cm29_data: List[Dict]) -> str:
@@ -522,10 +562,7 @@ def generate(
   <!-- 8. 관심 브랜드 현황 (맨 아래) -->
   <div class="section">
     <h2>🏷 관심 브랜드 현황</h2>
-    <table>
-      <thead><tr><th>브랜드</th><th>랭킹 내 상품수</th><th>최고 순위</th><th>전일 대비</th></tr></thead>
-      <tbody>{_brand_rows(brand_data)}</tbody>
-    </table>
+    {_brand_section(brand_data)}
   </div>
 
 </div>
