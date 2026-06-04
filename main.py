@@ -190,7 +190,7 @@ def run(dry_run: bool = False) -> None:
         "HTML 대시보드 생성",
         dashboard.generate,
         dashboard_rank_result, trend_data, price_result, brand_result, signals,
-        weather_data, keyword_data, forecasts, steady, cm29_data,
+        weather_data, keyword_data, forecasts, steady, cm29_data, all_overall,
     )
 
     # ── 6. 카카오 일일 요약 발송 ──────────────────────────────────────────────

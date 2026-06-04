@@ -167,7 +167,7 @@ def _brand_section(brand_data: List[Dict]) -> str:
             # 상품 목록 (최대 5개)
             if products:
                 parts.append('<table style="width:100%;font-size:12px">')
-                parts.append('<tr style="color:#888"><td>순위</td><td>상품명</td><td>카테고리</td><td>가격</td></tr>')
+                parts.append('<tr style="color:#888"><td>순위</td><td>상품명</td><td>카테고리</td><td>기간</td><td>가격</td></tr>')
                 for p in sorted(products, key=lambda x: x.get("rank",999))[:5]:
                     rank_ch = p.get("rank_change")
                     badge = ""
@@ -177,11 +177,14 @@ def _brand_section(brand_data: List[Dict]) -> str:
                         badge = f'<span style="color:#27ae60">▲{rank_ch}</span>'
                     elif rank_ch < 0:
                         badge = f'<span style="color:#e74c3c">▼{abs(rank_ch)}</span>'
+                    period_badge = p.get("period", "")
+                    period_color = {"1일":"#1a73e8","주간":"#27ae60","월간":"#e67e22"}.get(period_badge, "#888")
                     parts.append(
                         f'<tr><td>{p.get("rank","-")}위 {badge}</td>'
                         f'<td><a href="{p.get("url","#")}" target="_blank" style="color:#1a73e8">'
                         f'{p.get("product_name","")[:22]}</a></td>'
                         f'<td style="color:#888">{p.get("category","").replace("_전체","")}</td>'
+                        f'<td><span style="background:{period_color};color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">{period_badge}</span></td>'
                         f'<td>{p.get("price",0):,}원</td></tr>'
                     )
                 parts.append('</table>')
@@ -358,6 +361,7 @@ def generate(
     forecasts: Optional[List[Dict]] = None,
     steady: Optional[List[Dict]] = None,
     cm29_data: Optional[List[Dict]] = None,
+    overall_data: Optional[List[Dict]] = None,
 ) -> str:
     """
     대시보드 HTML 생성 후 파일 저장.
@@ -374,7 +378,35 @@ def generate(
     price_json = _price_chart_data(price_result)
     cm29_json  = _cm29_index(cm29_data or [])
 
-    # 기간 × 카테고리(대분류 + 세분류) 인덱싱
+    # 전체 랭킹(gf=A) 인덱싱 — 남성 랭킹과 동일한 구조, 별도 키셋
+    _overall_items = overall_data or []
+    overall_index: dict = {}
+    for item in _overall_items:
+        cat    = item.get("category", "")
+        period = item.get("period", "1일")
+        for main in ["상의", "아우터", "바지"]:
+            if not cat.startswith(main + "_"):
+                continue
+            sub = cat[len(main) + 1:]
+            key = f"{period}|{main}" if sub == "전체" else f"{period}|{main}_{sub}"
+            overall_index.setdefault(key, []).append({
+                "rank":          item.get("rank"),
+                "rank_change":   item.get("rank_change"),
+                "product_name":  item.get("product_name", ""),
+                "brand":         item.get("brand", ""),
+                "price":         item.get("price", 0),
+                "discount_rate": item.get("discount_rate", 0),
+                "url":           item.get("url", ""),
+                "category":      cat,
+                "period":        period,
+            })
+            break
+    for key in overall_index:
+        overall_index[key].sort(key=lambda x: x.get("rank") or 999)
+        overall_index[key] = overall_index[key][:30]
+    overall_json = json.dumps(overall_index, ensure_ascii=False)
+
+    # 기간 × 카테고리(대분류 + 세분류) 인덱싱 — 남성
     # key 예시: "1일|상의", "주간|상의_반소매티셔츠", "월간|아우터_후드집업"
     _MAIN_CATS = ["상의", "아우터", "바지"]
     ranking_index: dict = {}
@@ -483,7 +515,7 @@ def generate(
 <div class="container">
 
   <!-- 1. 날씨 & 수요 예측 -->
-  {_weather_block(weather_data or {{}})}
+  {_weather_block(weather_data)}
 
   <!-- 2. 기획전 시그널 -->
   <div class="section">
@@ -512,11 +544,18 @@ def generate(
   <div class="section">
     <h2>🏆 무신사 랭킹 TOP 30</h2>
 
-    <!-- 기간 탭 -->
-    <div class="tabs" id="period-tabs" style="margin-bottom:10px">
-      <div class="tab active" onclick="switchPeriod('1일',this)">1일</div>
-      <div class="tab" onclick="switchPeriod('주간',this)">주간</div>
-      <div class="tab" onclick="switchPeriod('월간',this)">월간</div>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <!-- 성별 토글 -->
+      <div class="tabs" id="gender-tabs">
+        <div class="tab active" onclick="switchGender('남성',this)">👔 남성</div>
+        <div class="tab" onclick="switchGender('전체',this)">🌐 전체</div>
+      </div>
+      <!-- 기간 탭 -->
+      <div class="tabs" id="period-tabs">
+        <div class="tab active" onclick="switchPeriod('1일',this)">1일</div>
+        <div class="tab" onclick="switchPeriod('주간',this)">주간</div>
+        <div class="tab" onclick="switchPeriod('월간',this)">월간</div>
+      </div>
     </div>
 
     <!-- 대분류 탭 -->
@@ -583,8 +622,10 @@ def generate(
 </div>
 
 <script>
-// 랭킹 데이터 (기간 × 카테고리 × 상품 목록)
-const rankingData = {ranking_json};
+// 랭킹 데이터
+const rankingData  = {ranking_json};   // 남성(gf=M)
+const overallData  = {overall_json};   // 전체(gf=A)
+let currentGender  = '남성';           // 현재 선택 성별
 
 // 세분류 정의
 const subCats = {{
@@ -604,7 +645,8 @@ function renderRankingTable() {{
     ? currentMainCat
     : currentMainCat + '_' + currentSubCat;
   const key = currentPeriod + '|' + catKey;
-  const allRows = rankingData[key] || [];
+  const dataset = currentGender === '전체' ? overallData : rankingData;
+  const allRows = dataset[key] || [];
 
   if (!allRows.length) {{
     area.innerHTML = '<p class="empty">데이터 없음 (수집 후 표시됩니다)</p>';
@@ -650,6 +692,14 @@ function renderSubCatTabs() {{
   container.innerHTML = subs.map(s =>
     `<div class="tab sub-tab${{s === currentSubCat ? ' active' : ''}}" onclick="switchSubCat('${{s}}',this)">${{s}}</div>`
   ).join('');
+}}
+
+function switchGender(gender, el) {{
+  currentGender = gender;
+  document.querySelectorAll('#gender-tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  rankingExpanded = false;
+  renderRankingTable();
 }}
 
 function switchPeriod(period, el) {{
