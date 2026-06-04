@@ -198,27 +198,26 @@ def _brand_rows(brand_data: List[Dict]) -> str:
     return _brand_section(brand_data)
 
 
-def _cm29_table(cm29_data: List[Dict]) -> str:
-    """29CM 남성 전체 랭킹 TOP 10 테이블."""
-    rows = [i for i in cm29_data if i.get("category") == "남성_전체"][:10]
-    if not rows:
-        return '<p class="empty">데이터 없음 (수집 후 표시됩니다)</p>'
-    trs = []
-    for item in rows:
-        disc = item.get("discount_rate", 0)
-        disc_str = f'<span class="disc">-{disc}%</span>' if disc else ""
-        score = item.get("review_score", 0)
-        score_str = f'★{score}' if score else ""
-        trs.append(
-            f'<tr><td>{item["rank"]}</td>'
-            f'<td><a href="{item.get("url","#")}" target="_blank">{item.get("product_name","")[:28]}</a></td>'
-            f'<td>{item.get("brand","")}</td>'
-            f'<td>{item.get("price",0):,}원 {disc_str}</td>'
-            f'<td style="color:#888;font-size:11px">{score_str}</td></tr>'
-        )
-    return f"""<table>
-      <thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th>가격</th><th>평점</th></tr></thead>
-      <tbody>{"".join(trs)}</tbody></table>"""
+def _cm29_index(cm29_data: List[Dict]) -> str:
+    """29CM 데이터를 '기간|카테고리' 키로 JSON 인덱싱."""
+    index: dict = {}
+    for item in cm29_data:
+        period = item.get("period", "1일")
+        cat    = item.get("category", "")
+        key    = f"{period}|{cat}"
+        index.setdefault(key, []).append({
+            "rank":          item.get("rank"),
+            "product_name":  item.get("product_name", ""),
+            "brand":         item.get("brand", ""),
+            "price":         item.get("price", 0),
+            "discount_rate": item.get("discount_rate", 0),
+            "review_score":  item.get("review_score", 0),
+            "is_sold_out":   item.get("is_sold_out", False),
+            "url":           item.get("url", ""),
+        })
+    for key in index:
+        index[key].sort(key=lambda x: x.get("rank") or 999)
+    return json.dumps(index, ensure_ascii=False)
 
 
 # ── 공개 인터페이스 ────────────────────────────────────────────────────────────
@@ -369,6 +368,7 @@ def generate(
     items     = rank_diff_result.get("items", [])
     trend_json = _trend_chart_data(trend_data)
     price_json = _price_chart_data(price_result)
+    cm29_json  = _cm29_index(cm29_data or [])
 
     # 기간 × 카테고리(대분류 + 세분류) 인덱싱
     # key 예시: "1일|상의", "주간|상의_반소매티셔츠", "월간|아우터_후드집업"
@@ -555,8 +555,19 @@ def generate(
 
   <!-- 29CM 남성 랭킹 -->
   <div class="section">
-    <h2>🛍 29CM 남성 베스트 TOP 10</h2>
-    {_cm29_table(cm29_data or [])}
+    <h2>🛍 29CM 남성 베스트 TOP 30</h2>
+
+    <!-- 카테고리 탭 -->
+    <div class="tabs" id="cm29-cat-tabs" style="margin-bottom:12px;flex-wrap:wrap">
+      <div class="tab active" onclick="switchCm29Cat('남성_전체',this)">전체</div>
+      <div class="tab" onclick="switchCm29Cat('남성_상의',this)">상의</div>
+      <div class="tab" onclick="switchCm29Cat('남성_아우터',this)">아우터</div>
+      <div class="tab" onclick="switchCm29Cat('남성_셋업',this)">셋업</div>
+      <div class="tab" onclick="switchCm29Cat('남성_하의',this)">하의</div>
+      <div class="tab" onclick="switchCm29Cat('남성_니트웨어',this)">니트웨어</div>
+    </div>
+
+    <div id="cm29-table-area"></div>
   </div>
 
   <!-- 8. 관심 브랜드 현황 (맨 아래) -->
@@ -667,6 +678,53 @@ document.head.appendChild(subStyle);
 
 renderSubCatTabs();
 renderRankingTable();
+
+// ── 29CM 랭킹 ──────────────────────────────────────────────────────────────────
+const cm29Data = {cm29_json};
+let cm29Cat = '남성_전체';
+let cm29Expanded = false;
+
+function renderCm29Table() {{
+  const area = document.getElementById('cm29-table-area');
+  const key = '실시간|' + cm29Cat;
+  const allRows = cm29Data[key] || [];
+  if (!allRows.length) {{
+    area.innerHTML = '<p class="empty">데이터 없음 (수집 후 표시됩니다)</p>';
+    return;
+  }}
+  const visibleRows = cm29Expanded ? allRows : allRows.slice(0, 10);
+  let html = '<table><thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th>가격</th><th>평점</th></tr></thead><tbody>';
+  visibleRows.forEach(r => {{
+    const disc = r.discount_rate ? '<span class="disc">-' + r.discount_rate + '%</span>' : '';
+    const score = r.review_score ? '★' + r.review_score : '';
+    const sold = r.is_sold_out ? ' <span style="color:#e74c3c;font-size:10px">품절</span>' : '';
+    html += '<tr><td>' + r.rank + '</td>';
+    html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '').slice(0, 30) + '</a>' + sold + '</td>';
+    html += '<td>' + (r.brand || '') + '</td>';
+    html += '<td>' + Number(r.price).toLocaleString() + '원 ' + disc + '</td>';
+    html += '<td style="color:#888;font-size:11px">' + score + '</td></tr>';
+  }});
+  html += '</tbody></table>';
+  if (allRows.length > 10) {{
+    const btnText = cm29Expanded ? '▲ 접기' : '▼ ' + allRows.length + '위까지 펼치기';
+    html += '<div style="text-align:center;margin-top:8px"><button onclick="toggleCm29()" style="border:1px solid #ddd;background:#f8f9fa;padding:6px 20px;border-radius:20px;cursor:pointer;font-size:13px;color:#555">' + btnText + '</button></div>';
+  }}
+  area.innerHTML = html;
+}}
+
+function switchCm29Cat(cat, el) {{
+  cm29Cat = cat; cm29Expanded = false;
+  document.querySelectorAll('#cm29-cat-tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderCm29Table();
+}}
+
+function toggleCm29() {{
+  cm29Expanded = !cm29Expanded;
+  renderCm29Table();
+}}
+
+renderCm29Table();
 
 // 트렌드 차트
 const td = {trend_json};

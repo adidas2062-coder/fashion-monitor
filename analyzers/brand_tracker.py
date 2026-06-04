@@ -64,7 +64,15 @@ def analyze(
             (b for b in config.WATCH_BRANDS if b.upper() == brand_upper),
             brand_upper,
         )
-        brand_items = [i for i in today if _brand_match(i, brand_upper)]
+        # URL 기준 중복 제거 (같은 상품이 세분류 여러 카테고리에 동시 진입 시)
+        seen_urls: set = set()
+        brand_items = []
+        for i in sorted([x for x in today if _brand_match(x, brand_upper)],
+                        key=lambda x: x.get("rank", 999)):
+            url = i.get("url", "")
+            if url not in seen_urls:
+                seen_urls.add(url)
+                brand_items.append(i)
 
         if not brand_items:
             # 랭킹 내 없음

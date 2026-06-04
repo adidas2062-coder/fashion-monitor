@@ -32,13 +32,16 @@ _RETRY_DELAY = 3.0
 
 # 남성 카테고리 코드 (display-bff-api 기반)
 _MEN_CATEGORIES = {
-    "남성_전체":   "272100100",
-    "남성_상의":   "272103100",
-    "남성_하의":   "272104100",
-    "남성_아우터": "272102100",
-    "남성_니트":   "272110100",
-    "남성_셋업":   "272112100",
+    "남성_전체":    "272100100",
+    "남성_상의":    "272103100",
+    "남성_아우터":  "272102100",
+    "남성_셋업":    "272112100",
+    "남성_하의":    "272104100",
+    "남성_니트웨어":"272110100",
 }
+
+# 29CM API는 NOW(실시간)만 지원 — 주간/월간 없음
+_PERIOD_SORT = "NOW"
 
 
 
@@ -102,37 +105,37 @@ def _parse(raw: List[Dict], category_name: str, period: str) -> List[Dict]:
 
 def collect(
     categories: Optional[Dict[str, str]] = None,
-    period_sort: str = "NOW",
+    periods: Optional[List[str]] = None,
     top_n: int = 30,
 ) -> List[Dict]:
     """
-    29CM 남성 카테고리별 베스트 랭킹 수집.
+    29CM 남성 카테고리별 베스트 랭킹 수집 (기간별).
 
     Args:
-        categories:   {카테고리명: 카테고리코드} dict. None이면 _MEN_CATEGORIES 사용.
-        period_sort:  "NOW"(실시간) | "DAILY"(일간) | "WEEKLY"(주간) | "MONTHLY"(월간)
-        top_n:        카테고리별 수집 건수.
+        categories: {카테고리명: 카테고리코드} dict. None이면 _MEN_CATEGORIES 사용.
+        periods:    수집 기간 목록 ["DAILY","WEEKLY","MONTHLY"]. None이면 config 사용.
+        top_n:      카테고리별 수집 건수.
 
     Returns:
-        카테고리·순위 순으로 정렬된 상품 목록.
+        기간·카테고리별 상품 목록.
     """
+    # 29CM API는 NOW(실시간)만 지원 — periods 파라미터 무시
     categories = categories or _MEN_CATEGORIES
-    period_label = {"NOW": "실시간", "DAILY": "1일", "WEEKLY": "주간", "MONTHLY": "월간"}.get(period_sort, period_sort)
 
     results: List[Dict] = []
     for i, (cat_name, cat_code) in enumerate(categories.items()):
-        if i > 0:
-            time.sleep(config.REQUEST_DELAY)
+            if i > 0:
+                time.sleep(config.REQUEST_DELAY)
 
-        logger.info("29CM [%s/%s] 수집 시작 (TOP %d)", cat_name, period_label, top_n)
-        raw = _fetch(cat_code, limit=top_n, period_sort=period_sort)
-        if raw is None:
-            logger.error("29CM [%s] 수집 실패", cat_name)
-            continue
+            logger.info("29CM [%s] 수집 시작 (TOP %d)", cat_name, top_n)
+            raw = _fetch(cat_code, limit=top_n, period_sort=_PERIOD_SORT)
+            if raw is None:
+                logger.error("29CM [%s] 수집 실패", cat_name)
+                continue
 
-        items = _parse(raw, cat_name, period_label)
-        results.extend(items)
-        logger.info("29CM [%s/%s] 수집 완료: %d건", cat_name, period_label, len(items))
+            items = _parse(raw, cat_name, "실시간")
+            results.extend(items)
+            logger.info("29CM [%s] 수집 완료: %d건", cat_name, len(items))
 
     logger.info("29CM 전체 수집 완료: 총 %d건 (%d카테고리)", len(results), len(categories))
     return results

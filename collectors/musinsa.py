@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 # ── 상수 ──────────────────────────────────────────────────────────────────────
 
 # sectionId=199 = ranking_cat (1일/주간/월간 기간 필터 지원)
+# gf=M → 남성 필터
 _RANKING_API = (
     "https://api.musinsa.com/api2/hm/web/v5/pans/ranking/sections/199"
-    "?storeCode=musinsa&categoryCode={category_code}&contentsId=&period={period}"
+    "?storeCode=musinsa&categoryCode={category_code}&contentsId=&period={period}&gf=M"
 )
 
 _PERIOD_LABELS = {
