@@ -72,18 +72,25 @@ def run(dry_run: bool = False) -> None:
     # ── 1. 수집 ───────────────────────────────────────────────────────────────
     from collectors import musinsa, google_trends, naver_datalab, instagram
 
-    # 노션 저장용 — 오늘 스케줄에 해당하는 기간만
-    today_rankings = _run("무신사 랭킹 수집", musinsa.collect, periods=periods) or []
+    # 노션 저장용 — 남성 필터, 오늘 스케줄 기간만
+    today_rankings = _run("무신사 남성 랭킹 수집", musinsa.collect, periods=periods, gf="M") or []
+    time.sleep(config.REQUEST_DELAY)
+
+    # 전체 랭킹 (gf=A) — 1일만, 카카오 요약용
+    all_overall = _run("무신사 전체 랭킹 수집", musinsa.collect,
+                       periods=["DAILY"],
+                       categories={"상의_전체":"001000","아우터_전체":"002000","바지_전체":"003000"},
+                       gf="A") or []
     time.sleep(config.REQUEST_DELAY)
 
     # 대시보드용 — 항상 3개 기간 모두 수집 (표시 전용, 노션 미저장)
     all_periods = ["DAILY", "WEEKLY", "MONTHLY"]
     if set(periods) == set(all_periods):
-        dashboard_rankings = today_rankings   # 이미 다 수집됨
+        dashboard_rankings = today_rankings
     else:
         missing = [p for p in all_periods if p not in periods]
         logger.info("대시보드용 추가 수집: %s", missing)
-        extra = _run("대시보드용 추가 기간 수집", musinsa.collect, periods=missing) or []
+        extra = _run("대시보드용 추가 기간 수집", musinsa.collect, periods=missing, gf="M") or []
         dashboard_rankings = today_rankings + extra
         time.sleep(config.REQUEST_DELAY)
 
@@ -190,7 +197,7 @@ def run(dry_run: bool = False) -> None:
     if not dry_run:
         from exporters import kakao_notify
         _run("카카오 일일 요약 발송", kakao_notify.send_daily_summary,
-             rank_result, trend_data, signals, weather_data, cm29_data)
+             rank_result, trend_data, signals, weather_data, cm29_data, all_overall)
 
     # ── 7. 주간 리포트 (월요일만) ─────────────────────────────────────────────
     if date.today().weekday() == 0 and not dry_run:   # 0 = 월요일

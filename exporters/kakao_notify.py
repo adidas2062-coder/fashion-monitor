@@ -88,6 +88,7 @@ def send_daily_summary(
     signals: List[Dict],
     weather_data: Optional[Dict] = None,
     cm29_data: Optional[List[Dict]] = None,
+    overall_rankings: Optional[List[Dict]] = None,
 ) -> bool:
     """일일 요약 알림 발송."""
     from datetime import datetime, timezone, timedelta
@@ -127,14 +128,21 @@ def send_daily_summary(
         for k in kw_items
     ) if kw_items else "  없음"
 
-    # ── 무신사 상의 1일 TOP 3 ─────────────────────────────────────────────────
-    musinsa_top = sorted(
-        [i for i in rank_diff_result.get("items", [])
+    # ── 무신사 전체 랭킹 1일 TOP 3 ───────────────────────────────────────────
+    overall_top = sorted(
+        [i for i in (overall_rankings or [])
          if i.get("category") == "상의_전체" and i.get("period") == "1일"],
         key=lambda x: x.get("rank", 999),
     )[:3]
+    if not overall_top:
+        # 폴백: rank_diff items에서 상의_전체 1일
+        overall_top = sorted(
+            [i for i in rank_diff_result.get("items", [])
+             if i.get("category") == "상의_전체" and i.get("period") == "1일"],
+            key=lambda x: x.get("rank", 999),
+        )[:3]
     musinsa_lines = []
-    for item in musinsa_top:
+    for item in overall_top:
         ch = _fmt_rank_change(item.get("rank_change"), item.get("rank_change") is None)
         musinsa_lines.append(
             f"  {item['rank']}위 {item.get('product_name','')[:14]} / {item.get('brand','')} {ch}"
@@ -178,6 +186,23 @@ def send_daily_summary(
 
     # ── 메시지 조립 ───────────────────────────────────────────────────────────
     wx_section = f"\n{wx_line}\n" if wx_line else ""
+    # ── 무신사 전체 카테고리별 1위 ────────────────────────────────────────────
+    overall_no1_lines = []
+    for cat_name in ["상의_전체", "아우터_전체", "바지_전체"]:
+        cat_label = cat_name.replace("_전체", "")
+        items_in_cat = sorted(
+            [i for i in (overall_rankings or [])
+             if i.get("category") == cat_name and i.get("period") == "1일"],
+            key=lambda x: x.get("rank", 999),
+        )
+        if items_in_cat:
+            top1 = items_in_cat[0]
+            disc = f" -{top1.get('discount_rate')}%" if top1.get("discount_rate") else ""
+            overall_no1_lines.append(
+                f"  [{cat_label}] {top1.get('product_name','')[:14]} / {top1.get('brand','')}{disc}"
+            )
+    overall_block = "\n".join(overall_no1_lines) if overall_no1_lines else "  없음"
+
     message = f"""[패션 모니터] {today_str} 일일 리포트{wx_section}
 📈 트렌드 급등 키워드
 {trend_block}
@@ -185,7 +210,10 @@ def send_daily_summary(
 🔍 무신사 실검 TOP5
 {kw_block}
 
-🏆 무신사 상의 1일 TOP3
+🏆 무신사 전체 카테고리 1위
+{overall_block}
+
+👔 무신사 상의 전체 TOP3
 {musinsa_block}
 
 🛍 29CM 남성 TOP3

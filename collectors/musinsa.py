@@ -23,10 +23,9 @@ logger = logging.getLogger(__name__)
 # ── 상수 ──────────────────────────────────────────────────────────────────────
 
 # sectionId=199 = ranking_cat (1일/주간/월간 기간 필터 지원)
-# gf=M → 남성 필터
 _RANKING_API = (
     "https://api.musinsa.com/api2/hm/web/v5/pans/ranking/sections/199"
-    "?storeCode=musinsa&categoryCode={category_code}&contentsId=&period={period}&gf=M"
+    "?storeCode=musinsa&categoryCode={category_code}&contentsId=&period={period}&gf={gf}"
 )
 
 _PERIOD_LABELS = {
@@ -117,16 +116,19 @@ def fetch_category(
     category_code: str,
     period: str,
     top_n: int,
+    gf: str = "M",
 ) -> List[Dict]:
     """
     단일 카테고리 + 단일 기간 랭킹 수집.
 
     Args:
         period: "DAILY" | "WEEKLY" | "MONTHLY"
+        gf:     "M"(남성) | "A"(전체) | "F"(여성)
     """
-    url = _RANKING_API.format(category_code=category_code, period=period)
+    url = _RANKING_API.format(category_code=category_code, period=period, gf=gf)
     label = _PERIOD_LABELS.get(period, period)
-    logger.info("무신사 [%s/%s] 수집 시작 (TOP %d)", category_name, label, top_n)
+    gender_label = {"M": "남성", "A": "전체", "F": "여성"}.get(gf, gf)
+    logger.info("무신사 [%s/%s/%s] 수집 시작 (TOP %d)", category_name, label, gender_label, top_n)
 
     raw = _fetch_with_retry(url)
     if raw is None:
@@ -141,6 +143,7 @@ def fetch_category(
 def collect(
     periods: Optional[List[str]] = None,
     categories: Optional[Dict[str, str]] = None,
+    gf: str = "M",
 ) -> List[Dict]:
     """
     config에 정의된 기간 × 카테고리 전체 수집.
@@ -148,27 +151,22 @@ def collect(
     Args:
         periods:    수집 기간 목록. None이면 config.MUSINSA_PERIODS 사용.
         categories: 카테고리 dict. None이면 config.MUSINSA_CATEGORIES 사용.
-
-    Returns:
-        기간·카테고리 순서로 정렬된 통합 상품 목록.
-        각 항목에 "period" 필드("1일"/"주간"/"월간") 포함.
+        gf:         "M"(남성) | "A"(전체) | "F"(여성). 기본값 남성.
     """
     periods    = periods    or config.MUSINSA_PERIODS
     categories = categories or config.MUSINSA_CATEGORIES
     top_n      = config.MUSINSA_TOP_N
     delay      = config.REQUEST_DELAY
 
-    # REALTIME 은 수집하지 않음
     periods = [p for p in periods if p != "REALTIME"]
 
     results: List[Dict] = []
-    total = len(periods) * len(categories)
     idx = 0
     for period in periods:
         for cat_name, cat_code in categories.items():
             if idx > 0:
                 time.sleep(delay)
-            items = fetch_category(cat_name, cat_code, period, top_n)
+            items = fetch_category(cat_name, cat_code, period, top_n, gf=gf)
             results.extend(items)
             idx += 1
 
