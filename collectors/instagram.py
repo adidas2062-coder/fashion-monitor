@@ -21,6 +21,11 @@ logger = logging.getLogger(__name__)
 
 # ── 내부 유틸 ─────────────────────────────────────────────────────────────────
 
+
+def _kst_today() -> str:
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+
 def _build_loader():
     """
     instaloader 인스턴스 생성 및 로그인.
@@ -85,7 +90,7 @@ def collect(tags: Optional[List[str]] = None) -> List[Dict]:
         해시태그별 dict 목록. 로그인 실패·미설정 시 빈 리스트.
     """
     tags = tags or config.INSTAGRAM_TAGS
-    collected_at = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    collected_at = _kst_today()
 
     loader = _build_loader()
     if loader is None:

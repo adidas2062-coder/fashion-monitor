@@ -322,8 +322,10 @@ def generate(
     Returns:
         저장된 파일 경로.
     """
-    now_str   = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    today_str = datetime.now(timezone.utc).strftime("%Y년 %m월 %d일")
+    from datetime import timedelta
+    kst_now   = datetime.now(timezone.utc) + timedelta(hours=9)
+    now_str   = kst_now.strftime("%Y-%m-%d %H:%M KST")
+    today_str = kst_now.strftime("%Y년 %m월 %d일")
     items     = rank_diff_result.get("items", [])
     trend_json = _trend_chart_data(trend_data)
     price_json = _price_chart_data(price_result)

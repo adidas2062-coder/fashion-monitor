@@ -50,6 +50,11 @@ _RETRY_DELAY = 3.0
 
 # ── 내부 함수 ─────────────────────────────────────────────────────────────────
 
+
+def _kst_today() -> str:
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+
 def _fetch_json(url: str) -> dict:
     req = urllib.request.Request(url, headers=_HEADERS)
     with urllib.request.urlopen(req, timeout=15) as resp:
@@ -74,7 +79,7 @@ def _parse_items(
     top_n: int,
 ) -> List[Dict]:
     modules = raw_data.get("data", {}).get("modules", [])
-    collected_at = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    collected_at = _kst_today()
     period_label = _PERIOD_LABELS.get(period, period)
 
     items: List[Dict] = []

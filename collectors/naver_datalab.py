@@ -35,6 +35,11 @@ _KW_CHUNK_SIZE = 5
 
 # ── 내부 유틸 ─────────────────────────────────────────────────────────────────
 
+
+def _kst_today() -> str:
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+
 def _headers() -> Dict[str, str]:
     return {
         "X-Naver-Client-Id":     config.NAVER_CLIENT_ID,
@@ -104,7 +109,7 @@ def fetch_category_trends() -> List[Dict]:
         logger.warning("NAVER_CLIENT_ID/SECRET 미설정 — 네이버 카테고리 트렌드 스킵")
         return []
 
-    collected_at = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    collected_at = _kst_today()
     start_now, end_now   = _date_range(7)
     start_prev, end_prev = _prev_week_start_end()
 
@@ -170,7 +175,7 @@ def fetch_keyword_trends(keywords: Optional[List[str]] = None) -> List[Dict]:
         return []
 
     keywords = keywords or config.FASHION_KEYWORDS
-    collected_at = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    collected_at = _kst_today()
     start_now, end_now   = _date_range(7)
     start_prev, end_prev = _prev_week_start_end()
 

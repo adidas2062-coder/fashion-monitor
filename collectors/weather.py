@@ -39,6 +39,11 @@ _WMO_LABELS = {
 }
 
 # 기온 → 패션 카테고리 수요 신호
+
+def _kst_today() -> str:
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+
 def _category_signal(temp_max: float) -> Dict[str, str]:
     if temp_max >= 28:
         return {"상의": "반소매↑", "아우터": "수요감소", "바지": "숏팬츠↑"}
@@ -98,7 +103,7 @@ def collect() -> Dict:
         "temp_min":        temp_min,
         "category_signal": _category_signal(temp_max),
         "forecast_3d":     forecast_3d,
-        "collected_at":    datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "collected_at":    _kst_today(),
     }
     logger.info("날씨 수집 완료: %s°C (%s) → %s",
                 result["current_temp"], result["weather_label"],

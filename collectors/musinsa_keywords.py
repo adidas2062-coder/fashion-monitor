@@ -36,6 +36,11 @@ _FLUCTUATION_LABEL = {
 }
 
 
+
+def _kst_today() -> str:
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+
 def collect(top_n: int = 30) -> List[Dict]:
     """
     무신사 실시간 검색어 랭킹 수집.
@@ -45,7 +50,7 @@ def collect(top_n: int = 30) -> List[Dict]:
         각 항목: rank / keyword / fluctuation_type / fluctuation_amount /
                  fluctuation_label / url / collected_at
     """
-    collected_at = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    collected_at = _kst_today()
 
     for attempt in range(1, _RETRY_MAX + 1):
         try:

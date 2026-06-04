@@ -41,6 +41,11 @@ _MEN_CATEGORIES = {
 }
 
 
+
+def _kst_today() -> str:
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+
 def _fetch(category_code: str, limit: int = 30, period_sort: str = "NOW") -> Optional[List[Dict]]:
     """단일 카테고리 베스트 아이템 수집."""
     params = (
@@ -68,7 +73,7 @@ def _fetch(category_code: str, limit: int = 30, period_sort: str = "NOW") -> Opt
 
 def _parse(raw: List[Dict], category_name: str, period: str) -> List[Dict]:
     """API 응답 → 정규화된 상품 dict 목록."""
-    collected_at = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    collected_at = _kst_today()
     results = []
     for rank, item in enumerate(raw, 1):
         sale_price     = item.get("lastSalePrice") or item.get("consumerPrice") or 0

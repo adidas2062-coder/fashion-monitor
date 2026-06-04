@@ -119,7 +119,7 @@ def save_rankings(items: List[Dict]) -> None:
         }
         if not _create_page(client, db_id, props):
             fail += 1
-        time.sleep(0.35)   # Notion API rate limit: ~3 req/s
+        time.sleep(0.35)
 
     logger.info("노션 랭킹 저장 완료: %d건 성공 / %d건 실패", len(items) - fail, fail)
     if fail:
@@ -247,11 +247,13 @@ def save_cm29_rankings(items: List[Dict]) -> None:
     """29CM 남성 랭킹 데이터를 노션 DB에 저장."""
     client = _client()
     db_id  = _check_db("CM29_RANKING_DB_ID")
+    save_items = items
+
     if not client or not db_id:
-        _csv_backup(f"backup_29cm_{date.today()}.csv", items)
+        _csv_backup(f"backup_29cm_{date.today()}.csv", save_items)
         return
 
-    logger.info("노션 29CM 랭킹 저장 시작: %d건", len(items))
+    logger.info("노션 29CM 랭킹 저장 시작: %d건", len(save_items))
     fail = 0
     for item in items:
         props = {

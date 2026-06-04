@@ -43,6 +43,11 @@ _RETRY_DELAY = 5.0
 
 # ── 내부 유틸 ─────────────────────────────────────────────────────────────────
 
+
+def _kst_today() -> str:
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+
 def _make_session() -> requests.Session:
     """Google Trends NID 쿠키를 획득한 requests 세션 반환."""
     session = requests.Session()
@@ -105,7 +110,7 @@ def fetch_keyword_interest(keywords: Optional[List[str]] = None) -> List[Dict]:
         키워드별 dict 목록. pytrends 실패 시 빈 리스트.
     """
     keywords = keywords or config.FASHION_KEYWORDS
-    collected_at = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    collected_at = _kst_today()
     session = _make_session()
 
     timeframe_now = "today 7-d"
@@ -154,7 +159,7 @@ def fetch_trending_rss() -> List[Dict]:
     Returns:
         트렌딩 키워드 dict 목록. 실패 시 빈 리스트.
     """
-    collected_at = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    collected_at = _kst_today()
     try:
         req = urllib.request.Request(_RSS_URL, headers=_HEADERS)
         with urllib.request.urlopen(req, timeout=15) as resp:

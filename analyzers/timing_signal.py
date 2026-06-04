@@ -46,6 +46,11 @@ _MAIN_CATS = ["상의", "아우터", "바지"]
 
 # ── 지표별 감지 함수 ──────────────────────────────────────────────────────────
 
+
+def _kst_today() -> str:
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+
 def _trend_surge(trend_data: List[Dict]) -> Dict[str, float]:
     """급등 키워드 → 변화율 맵."""
     threshold = config.TREND_SURGE_THRESHOLD
@@ -223,7 +228,7 @@ def detect(
     discount_cats    = _discount_surge(rank_diff_result)
     soldout_cats     = _soldout_ratio(rank_diff_result)
     cross_keywords   = _cross_category(trend_surging, rank_surging)
-    collected_at     = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    collected_at     = _kst_today()
 
     if not trend_surging:
         logger.info("기획전 시그널 없음 — 트렌드 급등 키워드 없음")
