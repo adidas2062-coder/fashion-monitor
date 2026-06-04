@@ -48,6 +48,10 @@ def _signal_cards(signals: List[Dict]) -> str:
           <p>트렌드 +{s.get('trend_pct',0):.0f}% | 랭킹 {rank_txt}</p>
           <p class="theme" style="margin:4px 0">→ {s.get('theme','')}</p>
           <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">{issue_html}</div>
+          <div style="margin-top:8px;background:#f8f9fa;border-radius:8px;padding:8px 10px;font-size:12px">
+            <span style="color:#888">📅 기획전 권장 오픈일:</span>
+            <strong style="color:{level_color};margin-left:6px">{s.get('open_label','계산 중')}</strong>
+          </div>
           <p class="meta" style="margin-top:4px">{s.get('brand','')} / {s.get('category','')}</p>
         </div>""")
     return "\n".join(parts)

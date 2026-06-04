@@ -164,10 +164,12 @@ def send_signal_alert(signal: Dict) -> bool:
     issues   = signal.get("issues", [])
     issue_str = ("\n" + "\n".join(f"  ⚠️ {i}" for i in issues)) if issues else ""
 
+    open_label = signal.get("open_label", "")
     message = f"""{level} 기획전 타이밍 시그널! (신뢰도 {score}점)
 키워드: {signal.get('keyword','')}
 - 트렌드 상승: +{signal.get('trend_pct',0):.0f}%
 - 무신사 랭킹: {signal.get('category','')} ({rank_txt}){issue_str}
-→ 추천 기획전 테마: {signal.get('theme','')}"""
+→ 추천 기획전 테마: {signal.get('theme','')}
+📅 권장 오픈일: {open_label}"""
 
     return _send(message.strip())

@@ -198,6 +198,40 @@ def _level(score: int) -> str:
     else:             return "🟢 참고"
 
 
+def _recommend_open_date(score: int) -> dict:
+    """
+    기획전 권장 오픈일 계산.
+
+    Returns:
+        {
+          "earliest": "YYYY-MM-DD",  # 최빠른 오픈 가능일
+          "latest":   "YYYY-MM-DD",  # 권장 마감일 (이 후에는 트렌드 하락 가능)
+          "label":    "~6/11 (7일 내)",
+        }
+    """
+    from datetime import datetime, timezone, timedelta
+    today = (datetime.now(timezone.utc) + timedelta(hours=9)).date()
+
+    if score >= 80:      # 🔴 긴급
+        earliest = today + timedelta(days=1)
+        latest   = today + timedelta(days=5)
+        label    = f"{latest.strftime('%m/%d')}까지 (3~5일 내)"
+    elif score >= 50:    # 🟡 주의
+        earliest = today + timedelta(days=3)
+        latest   = today + timedelta(days=14)
+        label    = f"{latest.strftime('%m/%d')}까지 (7~14일 내)"
+    else:                # 🟢 참고
+        earliest = today + timedelta(days=7)
+        latest   = today + timedelta(days=28)
+        label    = f"{latest.strftime('%m/%d')}까지 (2~4주 내)"
+
+    return {
+        "earliest": earliest.strftime("%Y-%m-%d"),
+        "latest":   latest.strftime("%Y-%m-%d"),
+        "label":    label,
+    }
+
+
 def _suggest_theme(keyword: str) -> str:
     for kw, theme in _THEME_TEMPLATES.items():
         if kw in keyword:
@@ -287,23 +321,27 @@ def detect(
             if diff > 0:
                 issues.append(f"작년 동기 대비 ▲{diff}위 상승")
 
+        open_date = _recommend_open_date(score)
         signal = {
-            "keyword":       trend_kw,
-            "trend_pct":     trend_pct,
-            "rank_change":   rank_change,
-            "is_new_entry":  matched_item is None,
-            "product_name":  matched_product or "",
-            "brand":         matched_item.get("brand", "") if matched_item else "",
-            "category":      cat,
-            "theme":         _suggest_theme(trend_kw),
-            "score":         score,
-            "level":         _level(score),
-            "issues":        issues,
+            "keyword":        trend_kw,
+            "trend_pct":      trend_pct,
+            "rank_change":    rank_change,
+            "is_new_entry":   matched_item is None,
+            "product_name":   matched_product or "",
+            "brand":          matched_item.get("brand", "") if matched_item else "",
+            "category":       cat,
+            "theme":          _suggest_theme(trend_kw),
+            "score":          score,
+            "level":          _level(score),
+            "issues":         issues,
             "discount_surge": discount_surge,
-            "soldout":       soldout,
-            "is_cross_cat":  is_cross,
-            "yoy_last_rank": yoy_rank,
-            "collected_at":  collected_at,
+            "soldout":        soldout,
+            "is_cross_cat":   is_cross,
+            "yoy_last_rank":  yoy_rank,
+            "collected_at":   collected_at,
+            "open_earliest":  open_date["earliest"],
+            "open_latest":    open_date["latest"],
+            "open_label":     open_date["label"],
         }
         signals.append(signal)
 
