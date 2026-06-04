@@ -87,6 +87,11 @@ def run(dry_run: bool = False) -> None:
         dashboard_rankings = today_rankings + extra
         time.sleep(config.REQUEST_DELAY)
 
+    # 29CM 남성 랭킹 수집 (매일)
+    from collectors import cm29_ranking
+    cm29_data = _run("29CM 남성 랭킹 수집", cm29_ranking.collect) or []
+    time.sleep(config.REQUEST_DELAY)
+
     google_data  = _run("구글 트렌드 수집", google_trends.collect) or []
     time.sleep(config.REQUEST_DELAY)
 
@@ -155,6 +160,7 @@ def run(dry_run: bool = False) -> None:
     if not dry_run:
         # 노션 저장
         _run("노션 랭킹 저장",       notion_exporter.save_rankings,      rank_result.get("items", today_rankings))
+        _run("노션 29CM 랭킹 저장",  notion_exporter.save_cm29_rankings, cm29_data)
         _run("노션 트렌드 저장",     notion_exporter.save_trends,        trend_data)
         _run("노션 신규진입 저장",   notion_exporter.save_new_entries,   new_entries)
         _run("노션 브랜드 저장",     notion_exporter.save_brand_tracking, brand_result)
@@ -177,7 +183,7 @@ def run(dry_run: bool = False) -> None:
         "HTML 대시보드 생성",
         dashboard.generate,
         dashboard_rank_result, trend_data, price_result, brand_result, signals,
-        weather_data, keyword_data, forecasts, steady,
+        weather_data, keyword_data, forecasts, steady, cm29_data,
     )
 
     # ── 6. 카카오 일일 요약 발송 ──────────────────────────────────────────────

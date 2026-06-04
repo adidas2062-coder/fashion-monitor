@@ -243,6 +243,39 @@ def save_signals(signals: List[Dict]) -> None:
         _csv_backup(f"backup_signal_{date.today()}.csv", signals)
 
 
+def save_cm29_rankings(items: List[Dict]) -> None:
+    """29CM 남성 랭킹 데이터를 노션 DB에 저장."""
+    client = _client()
+    db_id  = _check_db("CM29_RANKING_DB_ID")
+    if not client or not db_id:
+        _csv_backup(f"backup_29cm_{date.today()}.csv", items)
+        return
+
+    logger.info("노션 29CM 랭킹 저장 시작: %d건", len(items))
+    fail = 0
+    for item in items:
+        props = {
+            "상품명":   _prop_title(item.get("product_name", "")),
+            "날짜":     _prop_date(item.get("collected_at", "")),
+            "카테고리": _prop_select(item.get("category", "")),
+            "기간":     _prop_select(item.get("period", "")),
+            "순위":     _prop_number(item.get("rank")),
+            "브랜드":   _prop_text(item.get("brand", "")),
+            "가격":     _prop_number(item.get("price")),
+            "할인율":   _prop_number(item.get("discount_rate")),
+            "리뷰수":   _prop_number(item.get("review_count")),
+            "평점":     _prop_number(item.get("review_score")),
+            "URL":      _prop_url(item.get("url", "")),
+        }
+        if not _create_page(client, db_id, props):
+            fail += 1
+        time.sleep(0.35)
+
+    logger.info("노션 29CM 랭킹 저장 완료: %d건 성공 / %d건 실패", len(items) - fail, fail)
+    if fail:
+        _csv_backup(f"backup_29cm_{date.today()}.csv", items)
+
+
 def fetch_yesterday_rankings() -> List[Dict]:
     """
     노션 DB에서 어제 날짜 무신사 랭킹 데이터를 조회해 반환.

@@ -21,6 +21,7 @@ NOTION_TREND_DB_ID = ""         # 트렌드 키워드 DB
 NOTION_NEW_ENTRY_DB_ID = ""     # 신규진입상품 DB
 NOTION_BRAND_DB_ID = ""         # 브랜드트래킹 DB
 NOTION_SIGNAL_DB_ID = ""        # 기획전시그널 DB
+CM29_RANKING_DB_ID  = ""        # 29CM 남성 랭킹 DB
 
 # ── 카카오톡 나에게 보내기 ────────────────────────────────────────────────────
 # https://developers.kakao.com/ 앱 등록 → 내 애플리케이션 → REST API 키

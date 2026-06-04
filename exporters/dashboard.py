@@ -158,6 +158,29 @@ def _brand_rows(brand_data: List[Dict]) -> str:
     return "".join(parts)
 
 
+def _cm29_table(cm29_data: List[Dict]) -> str:
+    """29CM 남성 전체 랭킹 TOP 10 테이블."""
+    rows = [i for i in cm29_data if i.get("category") == "남성_전체"][:10]
+    if not rows:
+        return '<p class="empty">데이터 없음 (수집 후 표시됩니다)</p>'
+    trs = []
+    for item in rows:
+        disc = item.get("discount_rate", 0)
+        disc_str = f'<span class="disc">-{disc}%</span>' if disc else ""
+        score = item.get("review_score", 0)
+        score_str = f'★{score}' if score else ""
+        trs.append(
+            f'<tr><td>{item["rank"]}</td>'
+            f'<td><a href="{item.get("url","#")}" target="_blank">{item.get("product_name","")[:28]}</a></td>'
+            f'<td>{item.get("brand","")}</td>'
+            f'<td>{item.get("price",0):,}원 {disc_str}</td>'
+            f'<td style="color:#888;font-size:11px">{score_str}</td></tr>'
+        )
+    return f"""<table>
+      <thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th>가격</th><th>평점</th></tr></thead>
+      <tbody>{"".join(trs)}</tbody></table>"""
+
+
 # ── 공개 인터페이스 ────────────────────────────────────────────────────────────
 
 def _weather_block(weather_data: Dict) -> str:
@@ -291,6 +314,7 @@ def generate(
     keyword_data: Optional[List[Dict]] = None,
     forecasts: Optional[List[Dict]] = None,
     steady: Optional[List[Dict]] = None,
+    cm29_data: Optional[List[Dict]] = None,
 ) -> str:
     """
     대시보드 HTML 생성 후 파일 저장.
@@ -485,6 +509,12 @@ def generate(
   <div class="section">
     <h2>🏆 스테디셀러 (연속 TOP 10)</h2>
     {_steady_seller_rows(steady or [])}
+  </div>
+
+  <!-- 29CM 남성 랭킹 -->
+  <div class="section">
+    <h2>🛍 29CM 남성 베스트 TOP 10</h2>
+    {_cm29_table(cm29_data or [])}
   </div>
 
   <!-- 8. 관심 브랜드 현황 (맨 아래) -->
