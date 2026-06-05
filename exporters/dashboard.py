@@ -829,5 +829,13 @@ if (pd.labels.length) {{
     path = config.DASHBOARD_OUTPUT_PATH
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
-    logger.info("대시보드 저장 완료: %s", path)
+
+    # GitHub Pages용 docs/ 에도 동시 저장
+    docs_path = os.path.join(os.path.dirname(path) or ".", "..", "docs", "dashboard.html")
+    docs_path = os.path.normpath(docs_path)
+    os.makedirs(os.path.dirname(docs_path), exist_ok=True)
+    with open(docs_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    logger.info("대시보드 저장 완료: %s + %s", path, docs_path)
     return path
