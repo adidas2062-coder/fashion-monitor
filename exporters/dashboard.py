@@ -218,6 +218,7 @@ def _cm29_index(cm29_data: List[Dict]) -> str:
             "brand":         item.get("brand", ""),
             "price":         item.get("price", 0),
             "discount_rate": item.get("discount_rate", 0),
+            "review_count":  item.get("review_count", 0),
             "review_score":  item.get("review_score", 0),
             "is_sold_out":   item.get("is_sold_out", False),
             "url":           item.get("url", ""),
@@ -751,15 +752,17 @@ function renderCm29Table() {{
     return;
   }}
   const visibleRows = cm29Expanded ? allRows : allRows.slice(0, 10);
-  let html = '<table><thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th>가격</th><th>평점</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th>가격</th><th>리뷰</th><th>평점</th></tr></thead><tbody>';
   visibleRows.forEach(r => {{
-    const disc = r.discount_rate ? '<span class="disc">-' + r.discount_rate + '%</span>' : '';
-    const score = r.review_score ? '★' + r.review_score : '';
-    const sold = r.is_sold_out ? ' <span style="color:#e74c3c;font-size:10px">품절</span>' : '';
+    const disc   = r.discount_rate ? '<span class="disc">-' + r.discount_rate + '%</span>' : '';
+    const score  = r.review_score ? '★' + r.review_score : '-';
+    const review = r.review_count ? Number(r.review_count).toLocaleString() + '개' : '-';
+    const sold   = r.is_sold_out ? ' <span style="color:#e74c3c;font-size:10px">품절</span>' : '';
     html += '<tr><td>' + r.rank + '</td>';
     html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '').slice(0, 30) + '</a>' + sold + '</td>';
     html += '<td>' + (r.brand || '') + '</td>';
     html += '<td>' + Number(r.price).toLocaleString() + '원 ' + disc + '</td>';
+    html += '<td style="color:#888;font-size:11px">' + review + '</td>';
     html += '<td style="color:#888;font-size:11px">' + score + '</td></tr>';
   }});
   html += '</tbody></table>';
