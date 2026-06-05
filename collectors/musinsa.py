@@ -90,17 +90,20 @@ def _parse_items(
             rank = item.get("image", {}).get("rank")
             if rank is None or rank > top_n:
                 continue
-            info = item.get("info", {})
-            url  = item.get("onClick", {}).get("url", "")
+            info    = item.get("info", {})
+            url     = item.get("onClick", {}).get("url", "")
+            payload = item.get("onClick", {}).get("eventLog", {}).get("amplitude", {}).get("payload", {})
             items.append({
                 "rank":          rank,
-                "period":        period_label,       # "1일" / "주간" / "월간"
+                "period":        period_label,
                 "category":      category_name,
                 "product_name":  info.get("productName", ""),
                 "brand":         info.get("brandName", ""),
                 "price":         info.get("finalPrice", 0),
                 "discount_rate": info.get("discountRatio", 0),
                 "is_sold_out":   info.get("isSoldOut", False),
+                "review_count":  int(payload.get("reviewCount", 0) or 0),
+                "review_score":  int(payload.get("reviewScore", 0) or 0),
                 "url":           url,
                 "collected_at":  collected_at,
             })

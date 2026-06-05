@@ -419,6 +419,8 @@ def generate(
             "brand":         i.get("brand", ""),
             "price":         i.get("price", 0),
             "discount_rate": i.get("discount_rate", 0),
+            "review_count":  i.get("review_count", 0),
+            "review_score":  i.get("review_score", 0),
             "url":           i.get("url", ""),
             "category":      i.get("category", ""),
             "period":        i.get("period", ""),
@@ -654,7 +656,7 @@ function renderRankingTable() {{
   }}
 
   const visibleRows = rankingExpanded ? allRows : allRows.slice(0, 10);
-  let html = '<table><thead><tr><th>#</th><th>변동</th><th>상품명</th><th>브랜드</th><th>가격</th><th>세분류</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>#</th><th>변동</th><th>상품명</th><th>브랜드</th><th>가격</th><th>리뷰</th><th>세분류</th></tr></thead><tbody>';
   visibleRows.forEach(r => {{
     const ch = r.rank_change;
     let badge = '';
@@ -664,10 +666,12 @@ function renderRankingTable() {{
     else badge = '<span class="badge same">→</span>';
     const disc = r.discount_rate ? '<span class="disc">-' + r.discount_rate + '%</span>' : '';
     const subcat = (r.category || '').replace(currentMainCat + '_', '');
+    const review = r.review_count ? Number(r.review_count).toLocaleString() + '개' : '-';
     html += '<tr><td>' + r.rank + '</td><td>' + badge + '</td>';
     html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '').slice(0, 30) + '</a></td>';
     html += '<td>' + (r.brand || '') + '</td>';
     html += '<td>' + Number(r.price).toLocaleString() + '원 ' + disc + '</td>';
+    html += '<td style="color:#888;font-size:11px">' + review + '</td>';
     html += '<td style="color:#888;font-size:11px">' + subcat + '</td></tr>';
   }});
   html += '</tbody></table>';
