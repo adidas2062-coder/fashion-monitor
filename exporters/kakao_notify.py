@@ -93,7 +93,7 @@ def send_daily_summary(
     """일일 요약 알림 발송."""
     from datetime import datetime, timezone, timedelta
     kst_now   = datetime.now(timezone.utc) + timedelta(hours=9)
-    today_str = kst_now.strftime("%m.%d")
+    today_str = kst_now.strftime("%-m.%-d")   # 06.05 → 6.5 (0 패딩 없음)
 
     # ── 날씨 ─────────────────────────────────────────────────────────────────
     if weather_data:

@@ -153,7 +153,7 @@ def send_daily_summary(
     }]
 
     blocks = [
-        {"type": "header", "text": {"type": "plain_text", "text": f"👗 패션 모니터 일일 리포트 — {today_str}"}},
+        {"type": "header", "text": {"type": "plain_text", "text": f"👗 패션 모니터 일일 리포트 — {today_str} 09:00"}},
         {"type": "section", "text": {"type": "mrkdwn", "text": wx_text}} if wx_text else None,
         {"type": "divider"},
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*📈 트렌드 급등 키워드*\n{trend_text}"}},
