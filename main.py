@@ -173,10 +173,13 @@ def run(dry_run: bool = False) -> None:
         _run("노션 브랜드 저장",     notion_exporter.save_brand_tracking, brand_result)
         _run("노션 시그널 저장",     notion_exporter.save_signals,       signals)
 
-        # 기획전 시그널 즉시 카카오 알림
-        from exporters import kakao_notify
+        # 기획전 시그널 즉시 알림 (슬랙 우선, 카카오 보조)
+        from exporters import slack_notify, kakao_notify
         for sig in signals:
-            _run("카카오 시그널 즉시 알림", kakao_notify.send_signal_alert, sig)
+            if getattr(config, "SLACK_WEBHOOK_URL", ""):
+                _run("슬랙 시그널 즉시 알림", slack_notify.send_signal_alert, sig)
+            else:
+                _run("카카오 시그널 즉시 알림", kakao_notify.send_signal_alert, sig)
     else:
         logger.info("[DRY RUN] 저장 단계 스킵")
 
@@ -193,11 +196,15 @@ def run(dry_run: bool = False) -> None:
         weather_data, keyword_data, forecasts, steady, cm29_data, all_overall,
     )
 
-    # ── 6. 카카오 일일 요약 발송 ──────────────────────────────────────────────
+    # ── 6. 일일 요약 발송 (슬랙 우선, 카카오 보조) ───────────────────────────
     if not dry_run:
-        from exporters import kakao_notify
-        _run("카카오 일일 요약 발송", kakao_notify.send_daily_summary,
-             rank_result, trend_data, signals, weather_data, cm29_data, all_overall)
+        from exporters import slack_notify, kakao_notify
+        if getattr(config, "SLACK_WEBHOOK_URL", ""):
+            _run("슬랙 일일 요약 발송", slack_notify.send_daily_summary,
+                 rank_result, trend_data, signals, weather_data, cm29_data, all_overall)
+        else:
+            _run("카카오 일일 요약 발송", kakao_notify.send_daily_summary,
+                 rank_result, trend_data, signals, weather_data, cm29_data, all_overall)
 
     # ── 7. 주간 리포트 (월요일만) ─────────────────────────────────────────────
     if date.today().weekday() == 0 and not dry_run:   # 0 = 월요일

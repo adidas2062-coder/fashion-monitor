@@ -28,6 +28,10 @@ CM29_RANKING_DB_ID  = ""        # 29CM 남성 랭킹 DB
 # 토큰 발급: https://developers.kakao.com/docs/latest/ko/kakaologin/rest-api
 KAKAO_ACCESS_TOKEN = ""
 
+# ── 슬랙 알림 ─────────────────────────────────────────────────────────────────
+# api.slack.com/apps → Incoming Webhooks → Webhook URL
+SLACK_WEBHOOK_URL = ""
+
 # ── 인스타그램 (선택사항) ─────────────────────────────────────────────────────
 # 로그인 없이도 공개 해시태그 수집 가능. 실패 시 자동 스킵됨.
 INSTAGRAM_USERNAME = ""
