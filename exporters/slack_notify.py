@@ -165,11 +165,6 @@ def send_daily_summary(
         {"type": "divider"},
         {"type": "section", "text": {"type": "mrkdwn", "text": "*🎯 기획전 시그널*"}},
         *signal_section,
-        {"type": "actions", "elements": [
-            {"type": "button", "text": {"type": "plain_text", "text": "📊 대시보드 열기"},
-             "url": "https://adidas2062-coder.github.io/fashion-monitor/dashboard.html",
-             "style": "primary"},
-        ]},
         {"type": "context", "elements": [{"type": "mrkdwn", "text": f"패션 모니터 | {now.strftime('%H:%M')} KST"}]},
     ]
     blocks = [b for b in blocks if b]  # None 제거

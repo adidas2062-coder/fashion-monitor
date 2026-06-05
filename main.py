@@ -196,28 +196,6 @@ def run(dry_run: bool = False) -> None:
         weather_data, keyword_data, forecasts, steady, cm29_data, all_overall,
     )
 
-    # ── 5-1. GitHub Pages 자동 push ──────────────────────────────────────────
-    import subprocess
-    try:
-        subprocess.run(
-            ["git", "-C", "/Users/jeonjuwon/fashion-monitor",
-             "add", "docs/dashboard.html", "docs/index.html"],
-            capture_output=True, check=True,
-        )
-        subprocess.run(
-            ["git", "-C", "/Users/jeonjuwon/fashion-monitor",
-             "commit", "-m", f"dashboard: {date.today()} 업데이트"],
-            capture_output=True,
-        )
-        subprocess.run(
-            ["git", "-C", "/Users/jeonjuwon/fashion-monitor",
-             "push", "origin", "main"],
-            capture_output=True, check=True,
-        )
-        logger.info("✅ GitHub Pages push 완료")
-    except Exception as e:
-        logger.warning("GitHub Pages push 실패 (무시): %s", e)
-
     # ── 6. 일일 요약 발송 (슬랙 우선, 카카오 보조) ───────────────────────────
     if not dry_run:
         from exporters import slack_notify, kakao_notify
