@@ -33,6 +33,9 @@ logger = logging.getLogger("main")
 
 # ── 단계별 실행 래퍼 ─────────────────────────────────────────────────────────
 
+_fail_log: list = []   # 실패한 모듈 추적
+
+
 def _run(label: str, func, *args, **kwargs):
     """함수 실행 — 예외가 발생해도 로그만 남기고 계속."""
     try:
@@ -42,7 +45,29 @@ def _run(label: str, func, *args, **kwargs):
         return result
     except Exception as exc:
         logger.error("❌ %s 실패: %s", label, exc, exc_info=True)
+        _fail_log.append(label)
         return None
+
+
+def _check_anomaly(label: str, data, min_count: int = 1) -> bool:
+    """데이터 이상 감지 — 수집 건수가 0이면 True(이상)."""
+    count = len(data) if data else 0
+    if count < min_count:
+        logger.warning("⚠️ 데이터 이상 감지: %s → %d건 (최소 %d건 필요)", label, count, min_count)
+        _fail_log.append(f"{label}(데이터 없음)")
+        return True
+    return False
+
+
+def _send_failure_alert(fails: list) -> None:
+    """수집 실패 슬랙 알림."""
+    if not fails:
+        return
+    try:
+        from exporters.slack_notify import _post
+        _post({"text": f"⚠️ *패션 모니터 수집 오류*\n실패 항목: {', '.join(fails)}"})
+    except Exception as e:
+        logger.warning("실패 알림 발송 오류: %s", e)
 
 
 # ── 파이프라인 ────────────────────────────────────────────────────────────────
@@ -95,8 +120,15 @@ def run(dry_run: bool = False) -> None:
         time.sleep(config.REQUEST_DELAY)
 
     # 29CM 남성 랭킹 수집 (매일)
-    from collectors import cm29_ranking
-    cm29_data = _run("29CM 남성 랭킹 수집", cm29_ranking.collect) or []
+    from collectors import cm29_ranking, musinsa_brand_ranking, musinsa_events, cm29_events
+    cm29_data    = _run("29CM 남성 랭킹 수집",    cm29_ranking.collect) or []
+    brand_ranks  = _run("무신사 브랜드 랭킹 수집",  musinsa_brand_ranking.collect) or []
+    musinsa_evs  = _run("무신사 기획전 수집",       musinsa_events.collect) or []
+    cm29_evs     = _run("29CM 에디션 수집",        cm29_events.collect) or []
+
+    # 이상 감지
+    _check_anomaly("무신사 남성 랭킹", today_rankings, min_count=30)
+    _check_anomaly("29CM 랭킹", cm29_data, min_count=5)
     time.sleep(config.REQUEST_DELAY)
 
     google_data  = _run("구글 트렌드 수집", google_trends.collect) or []
@@ -148,6 +180,15 @@ def run(dry_run: bool = False) -> None:
     brand_result = _run("브랜드 트래킹", brand_tracker.analyze, today_rankings, yesterday_rankings) or []
     signals      = _run("기획전 시그널 감지", timing_signal.detect, trend_data, rank_result, archive_data) or []
 
+    # 신규 모듈
+    from analyzers import material_color_trend, category_growth
+    mat_color    = _run("소재·색상 트렌드 집계", material_color_trend.analyze, new_entries) or {}
+    cat_growth: list = []
+    if config.NOTION_API_KEY and config.NOTION_RANKING_DB_ID:
+        from notion_client import Client as _NC
+        _nc = _NC(auth=config.NOTION_API_KEY)
+        cat_growth = _run("카테고리 성장률 분석", category_growth.analyze, _nc, config.NOTION_RANKING_DB_ID) or []
+
     # 신규 진입 리뷰 키워드 분석
     from analyzers import review_keywords, steady_seller, trend_forecast
     reviewed_entries = _run("리뷰 키워드 분석", review_keywords.analyze_batch, new_entries[:10]) or []
@@ -194,6 +235,7 @@ def run(dry_run: bool = False) -> None:
         dashboard.generate,
         dashboard_rank_result, trend_data, price_result, brand_result, signals,
         weather_data, keyword_data, forecasts, steady, cm29_data, all_overall,
+        brand_ranks, musinsa_evs, cm29_evs, mat_color, cat_growth,
     )
 
     # ── 6. 일일 요약 발송 (슬랙 우선, 카카오 보조) ───────────────────────────
@@ -211,11 +253,16 @@ def run(dry_run: bool = False) -> None:
         from exporters import weekly_report
         _run("주간 리포트 생성", weekly_report.generate, trend_data)
 
+    # ── 8. 수집 실패 알림 ────────────────────────────────────────────────────
+    if _fail_log and not dry_run:
+        _send_failure_alert(_fail_log)
+
     # ── 완료 ──────────────────────────────────────────────────────────────────
     logger.info("=" * 60)
     logger.info(
-        "패션 모니터링 완료 | 랭킹:%d 트렌드:%d 신규:%d 시그널:%d%s",
+        "패션 모니터링 완료 | 랭킹:%d 트렌드:%d 신규:%d 시그널:%d 기획전(무신사:%d/29CM:%d)%s",
         len(today_rankings), len(trend_data), len(new_entries), len(signals),
+        len(musinsa_evs), len(cm29_evs),
         f" | 대시보드: {dash_path}" if dash_path else "",
     )
     logger.info("=" * 60)

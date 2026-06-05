@@ -351,6 +351,105 @@ def _steady_seller_rows(steady: List[Dict]) -> str:
       <tbody>{"".join(trs)}</tbody></table>"""
 
 
+def _events_block(musinsa_evs: List[Dict], cm29_evs: List[Dict]) -> str:
+    """기획전/에디션 섹션 HTML."""
+    parts = ['<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">']
+
+    # 무신사 기획전
+    parts.append('<div><h3 style="font-size:13px;color:#555;margin-bottom:8px">🛒 무신사 기획전</h3>')
+    if musinsa_evs:
+        for e in musinsa_evs[:6]:
+            parts.append(
+                f'<div style="padding:6px 0;border-bottom:1px solid #f0f0f0">'
+                f'<strong style="font-size:13px">{e["title"]}</strong>'
+                f'<span style="color:#888;font-size:11px;margin-left:8px">{e["item_count"]}개 상품</span>'
+                f'</div>'
+            )
+    else:
+        parts.append('<p class="empty">수집 중</p>')
+    parts.append('</div>')
+
+    # 29CM 에디션
+    parts.append('<div><h3 style="font-size:13px;color:#555;margin-bottom:8px">✨ 29CM 에디션</h3>')
+    if cm29_evs:
+        for e in cm29_evs[:6]:
+            url = e.get("url","#")
+            parts.append(
+                f'<div style="padding:6px 0;border-bottom:1px solid #f0f0f0">'
+                f'<a href="{url}" target="_blank" style="color:#1a73e8;font-size:13px">{e["title"]}</a>'
+                + (f'<p style="color:#aaa;font-size:11px;margin:2px 0">{e["sub_title"][:30]}</p>' if e.get("sub_title") else "")
+                + f'</div>'
+            )
+    else:
+        parts.append('<p class="empty">수집 중</p>')
+    parts.append('</div>')
+
+    parts.append('</div>')
+    return "\n".join(parts)
+
+
+def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
+    """무신사 브랜드 랭킹 테이블."""
+    if not brand_ranks:
+        return '<p class="empty">수집 중</p>'
+    trs = []
+    for b in brand_ranks[:15]:
+        fluct = b.get("fluctuation_type","NONE")
+        amt   = b.get("fluctuation_amt", 0)
+        badge = ""
+        if fluct == "UP":
+            badge = f'<span style="color:#27ae60">▲{amt}</span>'
+        elif fluct == "DOWN":
+            badge = f'<span style="color:#e74c3c">▼{amt}</span>'
+        elif fluct == "NEW":
+            badge = '<span style="background:#ede0ff;color:#7d3c98;padding:1px 5px;border-radius:8px;font-size:10px">NEW</span>'
+        label = f'<span style="color:#888;font-size:11px">{b.get("label","")}</span>' if b.get("label") else ""
+        url = b.get("url","#")
+        trs.append(
+            f'<tr><td>{b["rank"]}</td><td>{badge}</td>'
+            f'<td><a href="{url}" target="_blank">{b["brand"]}</a> {label}</td></tr>'
+        )
+    return f'<table><thead><tr><th>#</th><th>변동</th><th>브랜드</th></tr></thead><tbody>{"".join(trs)}</tbody></table>'
+
+
+def _material_color_block(mat_color: Dict) -> str:
+    """소재·색상 트렌드 블록."""
+    if not mat_color:
+        return '<p class="empty">신규 진입 상품 분석 중</p>'
+    mats   = mat_color.get("top_materials", [])
+    colors = mat_color.get("top_colors", [])
+    fits   = mat_color.get("fit_types", [])
+    parts  = []
+    if mats:
+        tags = "".join(f'<span class="issue-tag" style="margin:2px">{m}({n})</span>' for m,n in mats)
+        parts.append(f'<p style="margin-bottom:6px"><b>소재:</b> {tags}</p>')
+    if fits:
+        tags = "".join(f'<span class="issue-tag" style="margin:2px;background:#e8f5e9;color:#2e7d32;border-color:#4caf50">{f}({n})</span>' for f,n in fits)
+        parts.append(f'<p style="margin-bottom:6px"><b>핏:</b> {tags}</p>')
+    if colors:
+        tags = "".join(f'<span class="issue-tag" style="margin:2px;background:#e3f2fd;color:#1565c0;border-color:#42a5f5">{c}({n})</span>' for c,n in colors[:5])
+        parts.append(f'<p><b>색상:</b> {tags}</p>')
+    return "\n".join(parts) if parts else '<p class="empty">데이터 없음</p>'
+
+
+def _cat_growth_block(cat_growth: List[Dict]) -> str:
+    """카테고리 성장률 테이블."""
+    if not cat_growth:
+        return '<p class="empty">데이터 2주 이상 쌓이면 표시됩니다</p>'
+    trs = []
+    for c in cat_growth[:6]:
+        trend = c.get("trend","")
+        change = c.get("rank_change", 0)
+        color = "#27ae60" if change > 0 else ("#e74c3c" if change < 0 else "#888")
+        trs.append(
+            f'<tr><td>{c["category"]}</td>'
+            f'<td style="color:{color};font-weight:bold">{trend}</td>'
+            f'<td style="color:{color}">{change:+.1f}</td>'
+            f'<td style="color:#888;font-size:11px">{c.get("growth_pct",0):+.1f}%</td></tr>'
+        )
+    return f'<table><thead><tr><th>카테고리</th><th>트렌드</th><th>순위변화</th><th>성장률</th></tr></thead><tbody>{"".join(trs)}</tbody></table>'
+
+
 def generate(
     rank_diff_result: Dict,
     trend_data: List[Dict],
@@ -363,6 +462,11 @@ def generate(
     steady: Optional[List[Dict]] = None,
     cm29_data: Optional[List[Dict]] = None,
     overall_data: Optional[List[Dict]] = None,
+    brand_ranks: Optional[List[Dict]] = None,
+    musinsa_evs: Optional[List[Dict]] = None,
+    cm29_evs: Optional[List[Dict]] = None,
+    mat_color: Optional[Dict] = None,
+    cat_growth: Optional[List[Dict]] = None,
 ) -> str:
     """
     대시보드 HTML 생성 후 파일 저장.
@@ -614,6 +718,33 @@ def generate(
     </div>
 
     <div id="cm29-table-area"></div>
+  </div>
+
+  <!-- 기획전/에디션 모니터링 -->
+  <div class="section">
+    <h2>🎪 기획전 & 에디션 현황</h2>
+    {_events_block(musinsa_evs or [], cm29_evs or [])}
+  </div>
+
+  <!-- 무신사 브랜드 랭킹 + 카테고리 성장률 -->
+  <div class="section">
+    <h2>📊 브랜드 랭킹 & 카테고리 성장률</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <h3 style="font-size:13px;color:#555;margin-bottom:8px">🏆 무신사 브랜드 TOP 15</h3>
+        {_brand_ranking_block(brand_ranks or [])}
+      </div>
+      <div>
+        <h3 style="font-size:13px;color:#555;margin-bottom:8px">📈 카테고리 성장률 (주간)</h3>
+        {_cat_growth_block(cat_growth or [])}
+      </div>
+    </div>
+  </div>
+
+  <!-- 소재·색상 트렌드 -->
+  <div class="section">
+    <h2>🧵 신규 진입 소재·색상 트렌드</h2>
+    {_material_color_block(mat_color or {})}
   </div>
 
   <!-- 8. 관심 브랜드 현황 (맨 아래) -->
