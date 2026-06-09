@@ -1,0 +1,202 @@
+{
+  "ok": true,
+  "updated_at": "2026-06-09T16:37:24.228946+09:00",
+  "data": [
+    {
+      "index": 1,
+      "title": "한정수량 선착순 특가",
+      "item_count": 11,
+      "period": "~6/10 11:00 종료",
+      "top_items": [
+        {
+          "brand": "무신사 스탠다드",
+          "product_name": "라이트웨이트 히든 밴딩 하프 슬랙스 [라이트 그레이]",
+          "price": 11200,
+          "discount_rate": 67,
+          "url": "https://www.musinsa.com/products/1388463"
+        },
+        {
+          "brand": "더블유",
+          "product_name": "RIVA SLIDE - BLACK / 7403",
+          "price": 26400,
+          "discount_rate": 45,
+          "url": "https://www.musinsa.com/products/4140276"
+        },
+        {
+          "brand": "무신사 스탠다드 우먼",
+          "product_name": "우먼즈 릴렉스 핏 크루 넥 크롭 티셔츠 [화이트]",
+          "price": 0,
+          "discount_rate": 0,
+          "url": "https://www.musinsa.com/products/2392503"
+        }
+      ],
+      "platform": "무신사",
+      "collected_at": "2026-06-09"
+    },
+    {
+      "index": 2,
+      "title": "하루특가",
+      "item_count": 100,
+      "period": "~6/10 11:00 종료",
+      "top_items": [
+        {
+          "brand": "테이크이지",
+          "product_name": "시티 스트라이프 오버 셔츠(시티블루)",
+          "price": 29900,
+          "discount_rate": 55,
+          "url": "https://www.musinsa.com/products/1574268"
+        },
+        {
+          "brand": "무신사 스탠다드 우먼",
+          "product_name": "[쿨탠다드] 우먼즈 피케 폴로 원피스 [블랙]",
+          "price": 22140,
+          "discount_rate": 40,
+          "url": "https://www.musinsa.com/products/1875663"
+        },
+        {
+          "brand": "커스텀에이드",
+          "product_name": "4cm 모던 플립플랍 울티메이트 윌리스(CR1009)",
+          "price": 52000,
+          "discount_rate": 20,
+          "url": "https://www.musinsa.com/products/1944918"
+        }
+      ],
+      "platform": "무신사",
+      "collected_at": "2026-06-09"
+    },
+    {
+      "index": 3,
+      "title": "브랜드위크",
+      "item_count": 0,
+      "period": "",
+      "top_items": [],
+      "platform": "무신사",
+      "collected_at": "2026-06-09"
+    },
+    {
+      "index": 4,
+      "title": "패션위크",
+      "item_count": 30,
+      "period": "",
+      "top_items": [
+        {
+          "brand": "몽돌",
+          "product_name": "에센셜 스트레이트 팬츠 블랙 MDPT051BLACK",
+          "price": 69350,
+          "discount_rate": 5,
+          "url": "https://www.musinsa.com/products/3900912"
+        },
+        {
+          "brand": "몽돌",
+          "product_name": "[SET] 린넨 라운드넥 가디건 바이올렛 MDCD043VIOLET",
+          "price": 84150,
+          "discount_rate": 15,
+          "url": "https://www.musinsa.com/products/5952070"
+        },
+        {
+          "brand": "몽돌",
+          "product_name": "크로쉐 니트 후드 집업 아이보리 MDCD040IVORY",
+          "price": 68400,
+          "discount_rate": 5,
+          "url": "https://www.musinsa.com/products/4764029"
+        }
+      ],
+      "platform": "무신사",
+      "collected_at": "2026-06-09"
+    },
+    {
+      "index": 5,
+      "title": "오직 무신사 뷰티",
+      "item_count": 14,
+      "period": "",
+      "top_items": [
+        {
+          "brand": "무신사 스탠다드 뷰티",
+          "product_name": "[온더바디 컬래버] 코튼풋 발을 씻자 풋샴푸 750ml",
+          "price": 14900,
+          "discount_rate": 25,
+          "url": "https://www.musinsa.com/products/5699721"
+        },
+        {
+          "brand": "무신사 스탠다드 뷰티",
+          "product_name": "퍼퓸드 핸드크림 미스틱 우드 30ml",
+          "price": 2660,
+          "discount_rate": 32,
+          "url": "https://www.musinsa.com/products/5693203"
+        },
+        {
+          "brand": "무신사 스탠다드 뷰티",
+          "product_name": "무신사 스탠다드 애프터 샤워 EDP 50ml",
+          "price": 39900,
+          "discount_rate": 20,
+          "url": "https://www.musinsa.com/products/4388016"
+        }
+      ],
+      "platform": "무신사",
+      "collected_at": "2026-06-09"
+    },
+    {
+      "index": 6,
+      "title": "쿠폰으로 만나는 인기 추천템",
+      "item_count": 30,
+      "period": "",
+      "top_items": [
+        {
+          "brand": "셋업이엑스이",
+          "product_name": "LACE CROSS T-SHIRT / BLACK",
+          "price": 70110,
+          "discount_rate": 15,
+          "url": "https://www.musinsa.com/products/6263203"
+        },
+        {
+          "brand": "마뗑킴",
+          "product_name": "MATIN 16 APPLIQUE LOGO HOODY ZIP UP IN DARK NAVY",
+          "price": 117300,
+          "discount_rate": 15,
+          "url": "https://www.musinsa.com/products/6321593"
+        },
+        {
+          "brand": "노이아고",
+          "product_name": "[최소윤X노이아고] NOI1873 글로시 미니 숄더백 (4color)",
+          "price": 42080,
+          "discount_rate": 36,
+          "url": "https://www.musinsa.com/products/6375160"
+        }
+      ],
+      "platform": "무신사",
+      "collected_at": "2026-06-09"
+    },
+    {
+      "index": 7,
+      "title": "최저가 보상제",
+      "item_count": 30,
+      "period": "",
+      "top_items": [
+        {
+          "brand": "캘빈클라인 언더웨어",
+          "product_name": "여성 아이콘 코튼 모달 AF 비키니_QF8520ADP7A",
+          "price": 31450,
+          "discount_rate": 19,
+          "url": "https://www.musinsa.com/products/1388643"
+        },
+        {
+          "brand": "캘빈클라인 언더웨어",
+          "product_name": "남성 WB 코튼 스트레치 버라이어티 팩 트렁크 3PK_NP2312OUB1",
+          "price": 83700,
+          "discount_rate": 10,
+          "url": "https://www.musinsa.com/products/2054418"
+        },
+        {
+          "brand": "1996 스탠다드",
+          "product_name": "[10팩] 무지 드라이 핏 하프 삭스_화이트/블랙/혼합선택가능",
+          "price": 9980,
+          "discount_rate": 44,
+          "url": "https://www.musinsa.com/products/2310830"
+        }
+      ],
+      "platform": "무신사",
+      "collected_at": "2026-06-09"
+    }
+  ],
+  "count": 7
+}

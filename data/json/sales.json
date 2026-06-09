@@ -1,0 +1,143 @@
+{
+  "ok": true,
+  "updated_at": "2026-06-09T16:37:24.228583+09:00",
+  "data": {
+    "summary": {
+      "today_revenue": 5480017,
+      "today_orders": 62,
+      "revenue_change_pct": -11.6,
+      "avg_order_value": 88387
+    },
+    "daily": [
+      {
+        "date": "2026-05-27",
+        "revenue": 3448852,
+        "orders": 49,
+        "avg_order_value": 70385,
+        "return_rate": 7.3
+      },
+      {
+        "date": "2026-05-28",
+        "revenue": 4937360,
+        "orders": 97,
+        "avg_order_value": 50901,
+        "return_rate": 3.8
+      },
+      {
+        "date": "2026-05-29",
+        "revenue": 4795600,
+        "orders": 62,
+        "avg_order_value": 77348,
+        "return_rate": 9.0
+      },
+      {
+        "date": "2026-05-30",
+        "revenue": 4917586,
+        "orders": 119,
+        "avg_order_value": 41324,
+        "return_rate": 7.2
+      },
+      {
+        "date": "2026-05-31",
+        "revenue": 3937670,
+        "orders": 100,
+        "avg_order_value": 39377,
+        "return_rate": 5.0
+      },
+      {
+        "date": "2026-06-01",
+        "revenue": 5117105,
+        "orders": 108,
+        "avg_order_value": 47381,
+        "return_rate": 4.0
+      },
+      {
+        "date": "2026-06-02",
+        "revenue": 5938787,
+        "orders": 94,
+        "avg_order_value": 63179,
+        "return_rate": 7.0
+      },
+      {
+        "date": "2026-06-03",
+        "revenue": 6775403,
+        "orders": 65,
+        "avg_order_value": 104237,
+        "return_rate": 5.6
+      },
+      {
+        "date": "2026-06-04",
+        "revenue": 7207687,
+        "orders": 69,
+        "avg_order_value": 104459,
+        "return_rate": 3.7
+      },
+      {
+        "date": "2026-06-05",
+        "revenue": 7896355,
+        "orders": 59,
+        "avg_order_value": 133837,
+        "return_rate": 5.0
+      },
+      {
+        "date": "2026-06-06",
+        "revenue": 8442492,
+        "orders": 116,
+        "avg_order_value": 72780,
+        "return_rate": 7.9
+      },
+      {
+        "date": "2026-06-07",
+        "revenue": 6375220,
+        "orders": 61,
+        "avg_order_value": 104512,
+        "return_rate": 4.5
+      },
+      {
+        "date": "2026-06-08",
+        "revenue": 6201070,
+        "orders": 103,
+        "avg_order_value": 60205,
+        "return_rate": 4.4
+      },
+      {
+        "date": "2026-06-09",
+        "revenue": 5480017,
+        "orders": 62,
+        "avg_order_value": 88387,
+        "return_rate": 6.2
+      }
+    ],
+    "weekly": [
+      {
+        "week_start": "2026-05-18",
+        "week_end": "2026-05-24",
+        "revenue": 24325572,
+        "orders": 499,
+        "top_category": "상의"
+      },
+      {
+        "week_start": "2026-05-25",
+        "week_end": "2026-05-31",
+        "revenue": 39880063,
+        "orders": 689,
+        "top_category": "아우터"
+      },
+      {
+        "week_start": "2026-06-01",
+        "week_end": "2026-06-07",
+        "revenue": 27888835,
+        "orders": 427,
+        "top_category": "상의"
+      },
+      {
+        "week_start": "2026-06-08",
+        "week_end": "2026-06-14",
+        "revenue": 35908524,
+        "orders": 713,
+        "top_category": "바지"
+      }
+    ],
+    "note": "시뮬레이션 데이터 — 노션/데이터랩 연동 후 실제 데이터로 대체 예정"
+  }
+}
