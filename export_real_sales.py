@@ -48,9 +48,9 @@ def parse_musinsa_xls(fpath):
                 d = date_str[:10].replace('.', '-')
                 vals = [to_num(v) for v in cells[1:]]
                 # 무신사: 14개 데이터 [결제건, 결제액, 취소건, 취소액, 교환건, 교환액, 반품건, 반품액, 순매출건, 순매출액, ...]
-                # 주문건수 = 순매출건수 (index 8), 매출 = 순매출액 (index 9)
-                if len(vals) >= 10:
-                    result.append({"date": d, "orders": vals[8], "revenue": vals[9]})
+                # 사용자의 요청에 따라 '결제건수' (index 0) 와 '결제액' (index 1) 사용
+                if len(vals) >= 2:
+                    result.append({"date": d, "orders": vals[0], "revenue": vals[1]})
     return result
 
 def parse_29cm_report(fpath):
@@ -60,9 +60,10 @@ def parse_29cm_report(fpath):
     for _, row in df.iterrows():
         date_raw = str(row.iloc[0])[:10]
         if not re.match(r'\d{4}-\d{2}-\d{2}', date_raw): continue
-        # 주문건수 = index 4, 주문금액 = index 3, 환불건수 = index 6, 환불금액 = index 5
-        orders = to_num(row.iloc[4]) - to_num(row.iloc[6])
-        revenue = to_num(row.iloc[3]) - to_num(row.iloc[5])
+        # 사용자의 요청에 따라 환불액을 빼지 않은 순수 '주문금액' (결제금액) 사용
+        # 주문건수 = index 4, 주문금액 = index 3
+        orders = to_num(row.iloc[4])
+        revenue = to_num(row.iloc[3])
         result.append({"date": date_raw, "orders": max(0, orders), "revenue": max(0, revenue)})
     return result
 
