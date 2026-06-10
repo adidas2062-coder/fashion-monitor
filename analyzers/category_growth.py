@@ -19,14 +19,22 @@ def analyze(client, ranking_db_id: str, weeks: int = 2) -> List[Dict]:
 
     def _query(start, end):
         try:
-            resp = client.databases.query(
-                database_id=ranking_db_id,
-                filter={"and": [
-                    {"property": "날짜", "date": {"on_or_after": start}},
-                    {"property": "날짜", "date": {"on_or_before": end}},
-                ]},
-            )
-            return resp.get("results", [])
+            pages = []
+            cursor = None
+            while True:
+                resp = client.databases.query(
+                    database_id=ranking_db_id,
+                    filter={"and": [
+                        {"property": "날짜", "date": {"on_or_after": start}},
+                        {"property": "날짜", "date": {"on_or_before": end}},
+                    ]},
+                    start_cursor=cursor,
+                )
+                pages.extend(resp.get("results", []))
+                if not resp.get("has_more"):
+                    break
+                cursor = resp.get("next_cursor")
+            return pages
         except Exception as e:
             logger.error("카테고리 성장률 조회 실패: %s", e)
             return []

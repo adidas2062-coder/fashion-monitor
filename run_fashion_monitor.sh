@@ -18,3 +18,4 @@ touch "$MARKER"
 
 # 프론트엔드 연동용 JSON 데이터 내보내기
 /usr/bin/python3 export_json.py >> logs/cron.log 2>&1
+/usr/bin/python3 export_real_sales.py >> logs/cron.log 2>&1

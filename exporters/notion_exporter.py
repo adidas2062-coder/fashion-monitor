@@ -77,8 +77,14 @@ def _csv_backup(filename: str, rows: List[Dict]) -> None:
     path = f"data/{filename}"
     if not rows:
         return
+    fieldnames = []
+    for row in rows:
+        for key in row.keys():
+            if key not in fieldnames:
+                fieldnames.append(key)
+
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer = csv.DictWriter(f, fieldnames=fieldnames, restval="")
         writer.writeheader()
         writer.writerows(rows)
     logger.info("CSV 백업 저장: %s (%d건)", path, len(rows))
@@ -143,6 +149,9 @@ def save_trends(items: List[Dict]) -> None:
             "플랫폼":       _prop_select(item.get("platform", "")),
             "점수/수치":    _prop_number(item.get("score")),
             "전주대비변화": _prop_number(item.get("change_pct")),
+            "순위":         _prop_number(item.get("rank")),
+            "변동레이블":   _prop_text(item.get("fluctuation_label", "")),
+            "변동수":       _prop_number(item.get("fluctuation_amount")),
         }
         if not _create_page(client, db_id, props):
             fail += 1
@@ -233,6 +242,12 @@ def save_signals(signals: List[Dict]) -> None:
             "트렌드상승률": _prop_number(s.get("trend_pct")),
             "랭킹변동":    _prop_number(s.get("rank_change")),
             "추천테마":    _prop_text(s.get("theme", "")),
+            "점수":        _prop_number(s.get("score")),
+            "레벨":        _prop_select(s.get("level", "")),
+            "브랜드":      _prop_text(s.get("brand", "")),
+            "카테고리":    _prop_select(s.get("category", "")),
+            "권장오픈일":  _prop_text(s.get("open_label", "")),
+            "신규진입":    _prop_select("예" if s.get("is_new_entry") else "아니오"),
         }
         if not _create_page(client, db_id, props):
             fail += 1

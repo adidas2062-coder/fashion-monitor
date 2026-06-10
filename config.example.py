@@ -5,6 +5,12 @@
 #   cp config.example.py config.py
 #   vi config.py   # 아래 빈 문자열에 실제 키를 입력
 
+# ── 무신사 파트너스 계정 ──────────────────────────────────────────────────────
+MUSINSA_PARTNERS_ID = ""         # 커넥트킨록
+MUSINSA_PARTNERS_PASSWORD = ""
+EDINBURGH_PARTNERS_ID = ""       # 에든버러클럽
+EDINBURGH_PARTNERS_PASSWORD = ""
+
 # ── 네이버 데이터랩 API ──────────────────────────────────────────────────────
 # https://developers.naver.com/apps/ 에서 앱 등록 후 발급
 NAVER_CLIENT_ID = ""

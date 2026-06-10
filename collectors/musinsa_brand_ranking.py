@@ -44,7 +44,7 @@ def collect(top_n: int = 30) -> List[Dict]:
         brand_name = m.get("title", {}).get("title", {}).get("text", "")
         labels = m.get("title", {}).get("labels", [])
         label_text = labels[0].get("text", "") if labels else ""
-        url_val = m.get("onClick", {}).get("url", "")
+        url_val = m.get("title", {}).get("onClick", {}).get("url", "")
         results.append({
             "rank":             rank,
             "brand":            brand_name,

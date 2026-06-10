@@ -7,8 +7,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(nam
 logger = logging.getLogger("json_exporter")
 
 def export_all():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_dir = os.path.join(base_dir, "data", "json")
+    # JSON 파일을 새 프로젝트(fashion-md-simulator) 폴더 안에 저장
+    data_dir = "/Users/jeonjuwon/.gemini/antigravity/scratch/fashion-md-simulator/data/json"
     os.makedirs(data_dir, exist_ok=True)
     
     logger.info("Collecting monitoring data...")

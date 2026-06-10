@@ -88,6 +88,15 @@ def _collect_periods() -> list:
 
 def run(dry_run: bool = False) -> None:
     today = date.today()
+
+    # ── 하루 1회 실행 가드 (중복 실행 방지) ──────────────────────────────────
+    guard_file = f"/tmp/fashion_monitor_{today}.guard"
+    if not dry_run:
+        if os.path.exists(guard_file):
+            logger.warning("⚠️ 오늘(%s) 이미 실행됨 — 중복 실행 방지로 종료. 강제 실행은 --dry-run 사용", today)
+            return
+        open(guard_file, "w").close()
+
     periods = _collect_periods()
     logger.info("=" * 60)
     logger.info("패션 모니터링 시작 (%s) 수집기간=%s%s",

@@ -97,7 +97,7 @@ def _parse(raw: List[Dict], category_name: str, period: str) -> List[Dict]:
             "review_count":  item.get("reviewCount", 0),
             "review_score":  item.get("reviewAveragePoint", 0.0),
             "is_sold_out":   item.get("isSoldOut", False),
-            "url":           f"https://www.29cm.co.kr/product/detail?itemNo={item.get('itemNo','')}",
+            "url":           f"https://product.29cm.co.kr/catalog/{item.get('itemNo','')}",
             "collected_at":  collected_at,
         })
     return results

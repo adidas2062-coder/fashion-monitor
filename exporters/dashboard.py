@@ -33,26 +33,40 @@ def _signal_cards(signals: List[Dict]) -> str:
         return '<p class="empty">감지된 시그널 없음</p>'
     parts = []
     for s in signals:
-        rank_txt = "NEW" if s.get("is_new_entry") else (f"▲{s.get('rank_change',0)}" if s.get("rank_change") else "-")
-        level    = s.get("level", "🟢 참고")
-        score    = s.get("score", 0)
-        issues   = s.get("issues", [])
+        trend_pct = s.get("trend_pct", 0) or 0
+        rank_change = s.get("rank_change")
+        rank_txt = "NEW" if s.get("is_new_entry") else (f"▲{rank_change}" if rank_change else "-")
+
+        # score/level 누락 시 trend_pct 기반 추정
+        score = s.get("score") or 0
+        level = s.get("level") or ""
+        if score == 0 and trend_pct > 0:
+            rank_bonus = 20 if s.get("is_new_entry") else (15 if rank_change and rank_change >= 5 else 0)
+            score = min(int(trend_pct * 1.5) + rank_bonus, 100)
+        if not any(e in level for e in ("🔴","🟡","🟢")):
+            level = "🔴 긴급" if score >= 80 else ("🟡 주의" if score >= 50 else "🟢 참고")
+
+        # open_label 누락 시 score 기반 추정
+        open_label = s.get("open_label") or ""
+        if not open_label and score > 0:
+            from datetime import date as _date, timedelta as _td
+            _today = _date.today()
+            days = 5 if score >= 80 else (10 if score >= 50 else 14)
+            open_label = f"{(_today + _td(days=days)).strftime('%m/%d')}까지 오픈 권장"
+
+        issues = s.get("issues", [])
         issue_html = "".join(f'<span class="issue-tag">{i}</span>' for i in issues)
-        level_color = {"🔴": "#e74c3c", "🟡": "#f39c12", "🟢": "#27ae60"}.get(level[:2], "#888")
+        level_cls = "lvl-red" if "🔴" in level else ("lvl-yellow" if "🟡" in level else "lvl-green")
+        score_disp = str(score) if score else "?"
         parts.append(f"""
-        <div class="signal-card" style="border-color:{level_color}">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <h3 style="color:{level_color}">{level} {s.get('keyword','')}</h3>
-            <span style="background:{level_color};color:#fff;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:bold">{score}점</span>
-          </div>
-          <p>트렌드 +{s.get('trend_pct',0):.0f}% | 랭킹 {rank_txt}</p>
-          <p class="theme" style="margin:4px 0">→ {s.get('theme','')}</p>
-          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">{issue_html}</div>
-          <div style="margin-top:8px;background:#f8f9fa;border-radius:8px;padding:8px 10px;font-size:12px">
-            <span style="color:#888">📅 기획전 권장 오픈일:</span>
-            <strong style="color:{level_color};margin-left:6px">{s.get('open_label','계산 중')}</strong>
-          </div>
-          <p class="meta" style="margin-top:4px">{s.get('brand','')} / {s.get('category','')}</p>
+        <div class="signal-card {level_cls}">
+          <div class="signal-score">{score_disp}</div>
+          <h3>{level} {s.get('keyword','')}</h3>
+          <p class="signal-meta">트렌드 +{trend_pct:.0f}% | 랭킹 {rank_txt}</p>
+          <p class="signal-theme">→ {s.get('theme','')}</p>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">{issue_html}</div>
+          <div class="open-date">📅 권장 오픈일: <strong>{open_label or '계산 중'}</strong></div>
+          <p class="signal-meta" style="margin-top:6px">{s.get('brand','')} / {s.get('category','')}</p>
         </div>""")
     return "\n".join(parts)
 
@@ -353,32 +367,18 @@ def _steady_seller_rows(steady: List[Dict]) -> str:
 
 def _events_block(musinsa_evs: List[Dict], cm29_evs: List[Dict]) -> str:
     """기획전/에디션 섹션 HTML."""
-    parts = ['<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">']
+    parts = ['<div>']
 
     # 무신사 기획전
     parts.append('<div><h3 style="font-size:13px;color:#555;margin-bottom:8px">🛒 무신사 기획전</h3>')
     if musinsa_evs:
         for e in musinsa_evs[:6]:
+            badge = e.get("period") or f'{e["item_count"]}개 상품'
             parts.append(
-                f'<div style="padding:6px 0;border-bottom:1px solid #f0f0f0">'
-                f'<strong style="font-size:13px">{e["title"]}</strong>'
-                f'<span style="color:#888;font-size:11px;margin-left:8px">{e["item_count"]}개 상품</span>'
+                f'<div class="event-item">'
+                f'<span class="event-title">{e["title"]}</span>'
+                f'<span class="event-badge">{badge}</span>'
                 f'</div>'
-            )
-    else:
-        parts.append('<p class="empty">수집 중</p>')
-    parts.append('</div>')
-
-    # 29CM 에디션
-    parts.append('<div><h3 style="font-size:13px;color:#555;margin-bottom:8px">✨ 29CM 에디션</h3>')
-    if cm29_evs:
-        for e in cm29_evs[:6]:
-            url = e.get("url","#")
-            parts.append(
-                f'<div style="padding:6px 0;border-bottom:1px solid #f0f0f0">'
-                f'<a href="{url}" target="_blank" style="color:#1a73e8;font-size:13px">{e["title"]}</a>'
-                + (f'<p style="color:#aaa;font-size:11px;margin:2px 0">{e["sub_title"][:30]}</p>' if e.get("sub_title") else "")
-                + f'</div>'
             )
     else:
         parts.append('<p class="empty">수집 중</p>')
@@ -565,149 +565,144 @@ def generate(
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {{
-    --bg:#f8f9fa; --card:#fff; --accent:#1a73e8; --signal:#ff6b00;
-    --up:#2ecc71; --down:#e74c3c; --new:#9b59b6; --border:#e0e0e0;
+    --bg:#f0f2f5; --card:#fff; --accent:#3b5bdb; --danger:#e03131;
+    --success:#2f9e44; --warning:#e67700; --new:#7048e8;
+    --border:#e9ecef; --text:#212529; --muted:#6c757d;
   }}
-  * {{ box-sizing:border-box; margin:0; padding:0; }}
-  body {{ font-family:'Apple SD Gothic Neo',sans-serif; background:var(--bg); color:#222; font-size:14px; }}
-  header {{ background:#111; color:#fff; padding:16px 24px; display:flex; justify-content:space-between; align-items:center; }}
-  header h1 {{ font-size:18px; }}
-  header .meta {{ font-size:12px; color:#aaa; }}
-  .container {{ max-width:1200px; margin:0 auto; padding:20px; }}
-  .section {{ background:var(--card); border-radius:12px; padding:20px; margin-bottom:20px; box-shadow:0 1px 4px rgba(0,0,0,.08); }}
-  h2 {{ font-size:16px; margin-bottom:14px; border-bottom:2px solid var(--accent); padding-bottom:6px; }}
-  /* 시그널 */
-  .signal-grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }}
-  .signal-card {{ background:#fff8f0; border:2px solid var(--signal); border-radius:10px; padding:14px; }}
-  .signal-card h3 {{ color:var(--signal); font-size:15px; margin-bottom:6px; }}
-  .signal-card .theme {{ font-weight:bold; color:#333; }}
-  .signal-card .meta {{ font-size:12px; color:#888; margin-top:4px; }}
-  /* 탭 */
-  .tabs {{ display:flex; gap:8px; margin-bottom:12px; }}
-  .tab {{ padding:6px 14px; border-radius:20px; border:1px solid var(--border); cursor:pointer; font-size:13px; }}
+  *{{ box-sizing:border-box; margin:0; padding:0; }}
+  body {{ font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.6; }}
+  /* ── 헤더 ── */
+  header {{ background:linear-gradient(135deg,#0f0c29,#302b63,#24243e); color:#fff; padding:18px 28px; box-shadow:0 2px 10px rgba(0,0,0,.3); }}
+  .header-inner {{ max-width:1280px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; }}
+  header h1 {{ font-size:19px; font-weight:700; letter-spacing:-.5px; }}
+  header .meta {{ font-size:12px; color:#94a3b8; }}
+  /* ── 빠른 이동 ── */
+  .nav-bar {{ background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:16px; }}
+  .nav-inner {{ display:flex; overflow-x:auto; scrollbar-width:none; padding:0 4px; }}
+  .nav-inner::-webkit-scrollbar {{ display:none; }}
+  .nav-item {{ padding:10px 14px; font-size:12px; font-weight:600; color:var(--muted); text-decoration:none; white-space:nowrap; border-bottom:2px solid transparent; transition:all .2s; }}
+  .nav-item:hover {{ color:var(--accent); border-bottom-color:var(--accent); }}
+  /* ── 레이아웃 ── */
+  .container {{ max-width:1280px; margin:0 auto; padding:24px 20px; }}
+  .section {{ background:var(--card); border-radius:16px; padding:22px 24px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,.05); border:1px solid var(--border); }}
+  h2 {{ font-size:15px; font-weight:700; margin-bottom:16px; display:flex; align-items:center; gap:8px; }}
+  h2 .line {{ flex:1; height:1px; background:var(--border); margin-left:4px; }}
+  h3.sub {{ font-size:13px; font-weight:600; color:var(--muted); margin-bottom:10px; }}
+  .col-2 {{ display:grid; grid-template-columns:1fr 1fr; gap:24px; }}
+  @media(max-width:800px){{ .col-2{{ grid-template-columns:1fr; }} }}
+  /* ── 탭 ── */
+  .tabs {{ display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }}
+  .tab {{ padding:5px 14px; border-radius:20px; border:1.5px solid var(--border); cursor:pointer; font-size:12px; font-weight:600; transition:all .15s; color:var(--muted); background:#fff; user-select:none; }}
+  .tab:hover {{ border-color:var(--accent); color:var(--accent); }}
   .tab.active {{ background:var(--accent); color:#fff; border-color:var(--accent); }}
   .tab-content {{ display:none; }}
   .tab-content.active {{ display:block; }}
-  /* 테이블 */
+  /* ── 테이블 ── */
   table {{ width:100%; border-collapse:collapse; font-size:13px; }}
-  th {{ background:#f0f4ff; padding:8px; text-align:left; font-weight:600; }}
-  td {{ padding:8px; border-bottom:1px solid var(--border); }}
+  thead th {{ background:#f8f9fa; padding:8px 10px; text-align:left; font-weight:700; font-size:11px; color:var(--muted); border-bottom:1.5px solid var(--border); text-transform:uppercase; letter-spacing:.5px; }}
+  td {{ padding:8px 10px; border-bottom:1px solid #f3f4f6; vertical-align:middle; }}
+  tbody tr:hover {{ background:#f5f7ff; }}
   a {{ color:var(--accent); text-decoration:none; }}
   a:hover {{ text-decoration:underline; }}
-  /* 배지 */
-  .badge {{ font-size:11px; padding:2px 6px; border-radius:10px; font-weight:bold; }}
-  .badge.up   {{ background:#d4f5e2; color:#1a7a40; }}
-  .badge.down {{ background:#fde8e8; color:#c0392b; }}
-  .badge.new  {{ background:#ede0ff; color:#7d3c98; }}
-  .badge.same {{ background:#eee; color:#666; }}
-  .disc {{ color:#e74c3c; font-size:12px; }}
-  /* 신규 진입 카드 */
-  .entry-grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; }}
-  .entry-card {{ border:1px solid var(--border); border-radius:10px; padding:12px; }}
-  .entry-cat {{ font-size:11px; color:var(--accent); font-weight:bold; margin-bottom:4px; }}
-  .entry-card h4 {{ font-size:13px; margin-bottom:4px; }}
-  .entry-card .brand {{ color:#888; font-size:12px; margin-bottom:4px; }}
-  /* 차트 */
+  /* ── 배지 ── */
+  .badge {{ font-size:11px; padding:2px 7px; border-radius:10px; font-weight:700; white-space:nowrap; }}
+  .badge.up   {{ background:#d3f9d8; color:#1a5e2a; }}
+  .badge.down {{ background:#ffe3e3; color:#7d1a1a; }}
+  .badge.new  {{ background:#e5dbff; color:#5f3dc4; }}
+  .badge.same {{ background:#f1f3f5; color:#868e96; }}
+  .disc {{ color:var(--danger); font-size:12px; font-weight:700; }}
+  /* ── 기획전 시그널 카드 ── */
+  .signal-section {{ background:linear-gradient(135deg,#fff9f5,#fff); }}
+  .signal-grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }}
+  .signal-card {{ border-radius:12px; padding:16px; border-left:4px solid; position:relative; }}
+  .signal-card.lvl-red    {{ background:#fff5f5; border-left-color:var(--danger); }}
+  .signal-card.lvl-yellow {{ background:#fffaf0; border-left-color:var(--warning); }}
+  .signal-card.lvl-green  {{ background:#f0fdf4; border-left-color:var(--success); }}
+  .signal-score {{ position:absolute; top:14px; right:14px; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#fff; }}
+  .signal-card.lvl-red    .signal-score {{ background:var(--danger); }}
+  .signal-card.lvl-yellow .signal-score {{ background:var(--warning); }}
+  .signal-card.lvl-green  .signal-score {{ background:var(--success); }}
+  .signal-card h3 {{ font-size:14px; font-weight:700; margin-bottom:4px; padding-right:44px; }}
+  .signal-card.lvl-red    h3 {{ color:var(--danger); }}
+  .signal-card.lvl-yellow h3 {{ color:var(--warning); }}
+  .signal-card.lvl-green  h3 {{ color:var(--success); }}
+  .signal-card .signal-meta {{ font-size:12px; color:var(--muted); }}
+  .signal-card .signal-theme {{ font-size:13px; font-weight:600; color:var(--text); margin:6px 0 4px; }}
+  .signal-card .open-date {{ margin-top:10px; background:rgba(255,255,255,.75); border-radius:8px; padding:6px 10px; font-size:12px; }}
+  /* ── 신규 진입 카드 ── */
+  .entry-grid {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; }}
+  .entry-card {{ border:1.5px solid var(--border); border-radius:12px; padding:14px; transition:box-shadow .15s; }}
+  .entry-card:hover {{ box-shadow:0 4px 16px rgba(0,0,0,.1); }}
+  .entry-cat {{ font-size:10px; color:var(--accent); font-weight:800; margin-bottom:5px; letter-spacing:.8px; text-transform:uppercase; }}
+  .entry-card h4 {{ font-size:13px; margin-bottom:4px; line-height:1.4; }}
+  .entry-card .brand {{ color:var(--muted); font-size:12px; margin-bottom:5px; }}
+  /* ── 기획전 이벤트 ── */
+  .event-item {{ display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #f3f4f6; }}
+  .event-item:last-child {{ border-bottom:none; }}
+  .event-title {{ font-size:13px; font-weight:600; }}
+  .event-badge {{ font-size:11px; padding:3px 10px; border-radius:20px; background:#fff3cd; color:#92400e; border:1px solid #fbbf24; white-space:nowrap; flex-shrink:0; margin-left:8px; }}
+  /* ── 공통 ── */
   .chart-row {{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }}
   @media(max-width:700px){{ .chart-row{{ grid-template-columns:1fr; }} }}
-  .empty {{ color:#aaa; font-style:italic; }}
+  .empty {{ color:var(--muted); font-style:italic; font-size:13px; padding:6px 0; }}
   .issue-tag {{ background:#fff3cd; color:#856404; border:1px solid #ffc107; border-radius:12px; padding:2px 8px; font-size:11px; }}
+  .expand-btn {{ display:block; width:100%; margin-top:10px; padding:8px; border:1.5px solid var(--border); border-radius:20px; background:#f8f9fa; cursor:pointer; font-size:12px; color:var(--muted); transition:all .15s; }}
+  .expand-btn:hover {{ border-color:var(--accent); color:var(--accent); background:#fff; }}
 </style>
 </head>
 <body>
 <header>
-  <h1>👗 패션 MD 모니터링 대시보드</h1>
-  <span class="meta">마지막 업데이트: {now_str}</span>
+  <div class="header-inner">
+    <h1>👗 패션 MD 모니터링 대시보드</h1>
+    <span class="meta">마지막 업데이트: {now_str}</span>
+  </div>
 </header>
 <div class="container">
 
-  <!-- 1. 날씨 & 수요 예측 -->
-  {_weather_block(weather_data)}
-
-  <!-- 2. 기획전 시그널 -->
-  <div class="section">
-    <h2>🎯 기획전 타이밍 시그널</h2>
-    <div class="signal-grid">
-      {_signal_cards(signals)}
+  <!-- 빠른 이동 -->
+  <nav class="nav-bar">
+    <div class="nav-inner">
+      <a class="nav-item" href="#musinsa-ranking">🏆 무신사 랭킹</a>
+      <a class="nav-item" href="#cm29-ranking">🛍 29CM 랭킹</a>
+      <a class="nav-item" href="#new-entries">⬆ 신규 진입</a>
+      <a class="nav-item" href="#signals">🎯 기획전 시그널</a>
+      <a class="nav-item" href="#keywords">🔍 검색어</a>
+      <a class="nav-item" href="#events">🎪 기획전 현황</a>
+      <a class="nav-item" href="#brand-ranking">📊 브랜드 랭킹</a>
+      <a class="nav-item" href="#trends">📈 트렌드</a>
+      <a class="nav-item" href="#steady">🏅 스테디셀러</a>
+      <a class="nav-item" href="#watch-brands">🏷 관심 브랜드</a>
     </div>
-  </div>
+  </nav>
 
-  <!-- 3. 실시간 검색어 + 트렌드 예측 -->
-  <div class="section">
-    <h2>🔍 무신사 실시간 검색어 & 다음주 트렌드 예측</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-      <div>
-        <h3 style="font-size:14px;margin-bottom:8px;color:#555">실시간 검색어 TOP 20</h3>
-        {_keyword_table(keyword_data or [])}
-      </div>
-      <div>
-        <h3 style="font-size:14px;margin-bottom:8px;color:#555">트렌드 예측 (데이터 축적 중)</h3>
-        {_forecast_table(forecasts or [])}
-      </div>
-    </div>
-  </div>
-
-  <!-- 4. 무신사 랭킹 TOP 30 -->
-  <div class="section">
-    <h2>🏆 무신사 랭킹 TOP 30</h2>
-
-    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <!-- 성별 토글 -->
+  <!-- 1. 무신사 랭킹 TOP 30 -->
+  <div id="musinsa-ranking" class="section">
+    <h2>🏆 무신사 랭킹 TOP 30 <span class="line"></span></h2>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
       <div class="tabs" id="gender-tabs">
         <div class="tab active" onclick="switchGender('남성',this)">👔 남성</div>
         <div class="tab" onclick="switchGender('전체',this)">🌐 전체</div>
       </div>
-      <!-- 기간 탭 -->
       <div class="tabs" id="period-tabs">
         <div class="tab active" onclick="switchPeriod('1일',this)">1일</div>
         <div class="tab" onclick="switchPeriod('주간',this)">주간</div>
         <div class="tab" onclick="switchPeriod('월간',this)">월간</div>
       </div>
     </div>
-
-    <!-- 대분류 탭 -->
     <div class="tabs" id="main-cat-tabs" style="margin-bottom:6px">
       <div class="tab active" onclick="switchMainCat('상의',this)">상의</div>
       <div class="tab" onclick="switchMainCat('아우터',this)">아우터</div>
       <div class="tab" onclick="switchMainCat('바지',this)">바지</div>
     </div>
-
-    <!-- 세분류 탭 -->
     <div id="sub-cat-tabs" class="tabs" style="margin-bottom:12px;flex-wrap:wrap"></div>
-
     <div id="ranking-table-area">
       {_ranking_table(items,'상의','1일')}
     </div>
   </div>
 
-  <!-- 5. 신규 진입 상품 -->
-  <div class="section">
-    <h2>⬆ 오늘의 신규 진입 상품</h2>
-    <div class="entry-grid">
-      {_new_entry_cards(rank_diff_result.get('new_entries', []))}
-    </div>
-  </div>
-
-  <!-- 6. 트렌드 & 가격 분포 -->
-  <div class="section">
-    <h2>📊 트렌드 & 가격 분포</h2>
-    <div class="chart-row">
-      <div><canvas id="trendChart" height="200"></canvas></div>
-      <div><canvas id="priceChart" height="200"></canvas></div>
-    </div>
-  </div>
-
-  <!-- 7. 스테디셀러 -->
-  <div class="section">
-    <h2>🏆 스테디셀러 (연속 TOP 10)</h2>
-    {_steady_seller_rows(steady or [])}
-  </div>
-
-  <!-- 29CM 남성 랭킹 -->
-  <div class="section">
-    <h2>🛍 29CM 남성 베스트 TOP 30</h2>
-
-    <!-- 카테고리 탭 -->
+  <!-- 2. 29CM 남성 베스트 -->
+  <div id="cm29-ranking" class="section">
+    <h2>🛍 29CM 남성 베스트 TOP 30 <span class="line"></span></h2>
     <div class="tabs" id="cm29-cat-tabs" style="margin-bottom:12px;flex-wrap:wrap">
       <div class="tab active" onclick="switchCm29Cat('남성_전체',this)">전체</div>
       <div class="tab" onclick="switchCm29Cat('남성_상의',this)">상의</div>
@@ -716,40 +711,88 @@ def generate(
       <div class="tab" onclick="switchCm29Cat('남성_하의',this)">하의</div>
       <div class="tab" onclick="switchCm29Cat('남성_니트웨어',this)">니트웨어</div>
     </div>
-
     <div id="cm29-table-area"></div>
   </div>
 
-  <!-- 기획전/에디션 모니터링 -->
-  <div class="section">
-    <h2>🎪 기획전 & 에디션 현황</h2>
+  <!-- 3. 신규 진입 상품 -->
+  <div id="new-entries" class="section">
+    <h2>⬆ 오늘의 신규 진입 상품 <span class="line"></span></h2>
+    <div class="entry-grid">
+      {_new_entry_cards(rank_diff_result.get('new_entries', []))}
+    </div>
+  </div>
+
+  <!-- 4. 기획전 시그널 -->
+  <div id="signals" class="section signal-section">
+    <h2>🎯 기획전 타이밍 시그널 <span class="line"></span></h2>
+    <div class="signal-grid">
+      {_signal_cards(signals)}
+    </div>
+  </div>
+
+  <!-- 5. 실시간 검색어 + 트렌드 예측 -->
+  <div id="keywords" class="section">
+    <h2>🔍 무신사 실시간 검색어 & 트렌드 예측 <span class="line"></span></h2>
+    <div class="col-2">
+      <div>
+        <h3 class="sub">실시간 검색어 TOP 20</h3>
+        {_keyword_table(keyword_data or [])}
+      </div>
+      <div>
+        <h3 class="sub">트렌드 예측 (데이터 축적 중)</h3>
+        {_forecast_table(forecasts or [])}
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 기획전 현황 -->
+  <div id="events" class="section">
+    <h2>🎪 기획전 & 에디션 현황 <span class="line"></span></h2>
     {_events_block(musinsa_evs or [], cm29_evs or [])}
   </div>
 
-  <!-- 무신사 브랜드 랭킹 + 카테고리 성장률 -->
-  <div class="section">
-    <h2>📊 브랜드 랭킹 & 카테고리 성장률</h2>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <!-- 7. 브랜드 랭킹 & 카테고리 성장률 -->
+  <div id="brand-ranking" class="section">
+    <h2>📊 브랜드 랭킹 & 카테고리 성장률 <span class="line"></span></h2>
+    <div class="col-2">
       <div>
-        <h3 style="font-size:13px;color:#555;margin-bottom:8px">🏆 무신사 브랜드 TOP 15</h3>
+        <h3 class="sub">🏆 무신사 브랜드 TOP 15</h3>
         {_brand_ranking_block(brand_ranks or [])}
       </div>
       <div>
-        <h3 style="font-size:13px;color:#555;margin-bottom:8px">📈 카테고리 성장률 (주간)</h3>
+        <h3 class="sub">📈 카테고리 성장률 (주간)</h3>
         {_cat_growth_block(cat_growth or [])}
       </div>
     </div>
   </div>
 
-  <!-- 소재·색상 트렌드 -->
+  <!-- 8. 트렌드 & 가격 분포 -->
+  <div id="trends" class="section">
+    <h2>📈 트렌드 & 가격 분포 <span class="line"></span></h2>
+    <div class="chart-row">
+      <div><canvas id="trendChart" height="200"></canvas></div>
+      <div><canvas id="priceChart" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 9. 스테디셀러 -->
+  <div id="steady" class="section">
+    <h2>🏅 스테디셀러 (연속 TOP 10) <span class="line"></span></h2>
+    {_steady_seller_rows(steady or [])}
+  </div>
+
+  <!-- 10. 날씨 & 수요 예측 (참고용) -->
+  {_weather_block(weather_data)}
+
+  <!-- 11. 소재·색상 트렌드 -->
   <div class="section">
-    <h2>🧵 신규 진입 소재·색상 트렌드</h2>
+    <h2>🧵 신규 진입 소재·색상 트렌드 <span class="line"></span></h2>
     {_material_color_block(mat_color or {})}
   </div>
 
-  <!-- 8. 관심 브랜드 현황 (맨 아래) -->
-  <div class="section">
-    <h2>🏷 관심 브랜드 현황</h2>
+  <!-- 12. 관심 브랜드 현황 -->
+  <div id="watch-brands" class="section">
+    <h2>🏷 관심 브랜드 현황 <span class="line"></span></h2>
     {_brand_section(brand_data)}
   </div>
 
@@ -810,9 +853,7 @@ function renderRankingTable() {{
 
   if (allRows.length > 10) {{
     const btnText = rankingExpanded ? '▲ 접기' : '▼ ' + allRows.length + '위까지 펼치기';
-    html += '<div style="text-align:center;margin-top:8px">'
-      + '<button onclick="toggleRanking()" style="border:1px solid #ddd;background:#f8f9fa;padding:6px 20px;border-radius:20px;cursor:pointer;font-size:13px;color:#555">'
-      + btnText + '</button></div>';
+    html += '<button class="expand-btn" onclick="toggleRanking()">' + btnText + '</button>';
   }}
   area.innerHTML = html;
 }}
@@ -899,7 +940,7 @@ function renderCm29Table() {{
   html += '</tbody></table>';
   if (allRows.length > 10) {{
     const btnText = cm29Expanded ? '▲ 접기' : '▼ ' + allRows.length + '위까지 펼치기';
-    html += '<div style="text-align:center;margin-top:8px"><button onclick="toggleCm29()" style="border:1px solid #ddd;background:#f8f9fa;padding:6px 20px;border-radius:20px;cursor:pointer;font-size:13px;color:#555">' + btnText + '</button></div>';
+    html += '<button class="expand-btn" onclick="toggleCm29()">' + btnText + '</button>';
   }}
   area.innerHTML = html;
 }}

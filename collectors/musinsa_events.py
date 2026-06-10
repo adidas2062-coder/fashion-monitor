@@ -13,8 +13,22 @@ _HEADERS = {
     "Referer": "https://www.musinsa.com/main/musinsa/sale",
 }
 
+_KST = timezone(timedelta(hours=9))
+
+
 def _kst_today() -> str:
     return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
+
+
+def _format_target_date(epoch_ms) -> str:
+    """targetDate(밀리초 epoch) -> '~M/D HH:MM 종료' 문자열. 없으면 빈 문자열."""
+    if not epoch_ms:
+        return ""
+    try:
+        dt = datetime.fromtimestamp(epoch_ms / 1000, _KST)
+        return f"~{dt.month}/{dt.day} {dt.strftime('%H:%M')} 종료"
+    except Exception:
+        return ""
 
 def collect() -> List[Dict]:
     """무신사 현재 진행 중인 기획전/세일 섹션 수집."""
@@ -32,9 +46,11 @@ def collect() -> List[Dict]:
     for idx, m in enumerate(modules):
         # 섹션 타이틀 추출 — title.title.text 또는 section_title(eventLog)
         title_raw = m.get("title", {})
+        period = ""
         if isinstance(title_raw, dict):
             inner = title_raw.get("title", {})
             title = inner.get("text", "") if isinstance(inner, dict) else str(inner)
+            period = _format_target_date(title_raw.get("targetDate"))
         else:
             title = str(title_raw or "")
         title = title.replace("\n", " ").strip()
@@ -74,6 +90,7 @@ def collect() -> List[Dict]:
             "index":       idx + 1,
             "title":       title,
             "item_count":  item_count,
+            "period":      period,
             "top_items":   top_items,
             "platform":    "무신사",
             "collected_at": collected_at,
