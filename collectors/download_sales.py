@@ -76,11 +76,15 @@ def _sso_login(page: Page, user_id: str, password: str, totp_keyword: str):
 
 
 def _get_bizest_frame(page: Page, timeout: int = 20) -> Frame:
-    """bizest.musinsa.com iframe 반환. timeout 초 대기."""
+    """bizest.musinsa.com iframe 반환. timeout 초 대기. 내부 콘텐츠 로딩까지 대기."""
     page.wait_for_load_state("networkidle")
     for _ in range(timeout * 2):
         for f in page.frames:
             if "bizest" in f.url and f.url != "about:blank":
+                try:
+                    f.wait_for_load_state("networkidle", timeout=10000)
+                except Exception:
+                    pass
                 return f
         time.sleep(0.5)
     raise RuntimeError("bizest iframe을 찾지 못했습니다.")
@@ -94,6 +98,18 @@ def _fill_date(frame: Frame, name: str, value: str):
 def _search(frame: Frame):
     frame.locator('button:has-text("검색")').first.click()
     time.sleep(4)
+
+
+def _with_retry(func, *args, retries: int = 3, **kwargs):
+    """페이지 로딩 지연 등 일시적 오류 대비 재시도 (재시도 시 동일 페이지 재진입)."""
+    for attempt in range(1, retries + 1):
+        try:
+            return func(*args, **kwargs)
+        except Exception as exc:
+            if attempt == retries:
+                raise
+            logger.warning("[재시도] %s 실패 (%d/%d): %s", func.__name__, attempt, retries, exc)
+            time.sleep(3)
 
 
 def _right_click_export(page: Page, frame: Frame, save_path: Path):
@@ -135,6 +151,8 @@ def _download_daily_order_stats(page: Page, brand_name: str, save_path: Path):
     _fill_date(frame, "S_SDATE", "2026-01-01")
     _fill_date(frame, "S_EDATE", today)
     frame.locator('input[name="S_BRAND_NM"]').first.fill(brand_name)
+    frame.locator('input[name="S_BRAND_NM"]').first.press("Enter")
+    time.sleep(1)
     _search(frame)
 
     _right_click_export(page, frame, save_path)
@@ -211,17 +229,17 @@ def run():
 
     # 1. 일별 주문 통계 - 커넥트킨록
     logger.info("[1/5] 일별 주문 통계 - 커넥트킨록")
-    _download_daily_order_stats(page, "커넥트킨록",
-                                SAVE_DIR / f"일별주문통계_커넥트킨록_{today_str}.xls")
+    _with_retry(_download_daily_order_stats, page, "커넥트킨록",
+                SAVE_DIR / f"일별주문통계_커넥트킨록_{today_str}.xls")
 
     # 2. 일별 주문 통계 - 에든버러클럽 (같은 계정으로 브랜드만 변경)
     logger.info("[2/5] 일별 주문 통계 - 에든버러클럽")
-    _download_daily_order_stats(page, "에든버러클럽",
-                                SAVE_DIR / f"일별주문통계_에든버러클럽_{today_str}.xls")
+    _with_retry(_download_daily_order_stats, page, "에든버러클럽",
+                SAVE_DIR / f"일별주문통계_에든버러클럽_{today_str}.xls")
 
     # 3. 글로벌 주문 내역
     logger.info("[3/5] 글로벌 주문 내역")
-    _download_global_orders(page, SAVE_DIR / f"글로벌주문내역_{today_str}.xls")
+    _with_retry(_download_global_orders, page, SAVE_DIR / f"글로벌주문내역_{today_str}.xls")
 
     page.close()
 
@@ -231,7 +249,7 @@ def run():
     page.goto("https://partner-connect.29cm.co.kr/statistics")
     _sso_login(page, config.MUSINSA_PARTNERS_ID, config.MUSINSA_PARTNERS_PASSWORD,
                config.MUSINSA_PARTNERS_ID)
-    _download_29cm_sales(page, SAVE_DIR / f"29CM_커넥트킨록_{today_str}.xlsx")
+    _with_retry(_download_29cm_sales, page, SAVE_DIR / f"29CM_커넥트킨록_{today_str}.xlsx")
     page.close()
 
     # ── 29CM - 에든버러클럽 (세션 초기화 후 다른 계정으로 로그인) ────────────
@@ -241,7 +259,7 @@ def run():
     page.goto("https://partner-connect.29cm.co.kr/statistics")
     _sso_login(page, config.EDINBURGH_PARTNERS_ID, config.EDINBURGH_PARTNERS_PASSWORD,
                config.EDINBURGH_PARTNERS_ID)
-    _download_29cm_sales(page, SAVE_DIR / f"29CM_에든버러클럽_{today_str}.xlsx")
+    _with_retry(_download_29cm_sales, page, SAVE_DIR / f"29CM_에든버러클럽_{today_str}.xlsx")
     page.close()
 
     ctx.close()

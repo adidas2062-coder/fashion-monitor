@@ -84,10 +84,21 @@ def parse_global_orders(fpath):
         # 입금일시: index 26
         date_raw = str(row.iloc[26])[:10]
         if not re.match(r'\d{4}-\d{2}-\d{2}', date_raw): continue
+        
+        # 클레임상태: index 22
+        claim_status = str(row.iloc[22]).strip()
+        if claim_status in ('환불완료', '환불처리중'): continue
+        
         # 매입가: index 18
         rev = to_num(row.iloc[18])
-        # 스타일넘버: index 9
-        brand = "에든버러클럽" if "E" in str(row.iloc[9]).upper() else "커넥트킨록"
+        # 스타일넘버: index 9. E* = 커넥트, L* = 에든버러
+        style_num = str(row.iloc[9]).upper()
+        if style_num.startswith('E'):
+            brand = "커넥트킨록"
+        elif style_num.startswith('L'):
+            brand = "에든버러클럽"
+        else:
+            brand = "커넥트킨록" # 기본값
         
         key = (date_raw, brand)
         if key not in daily_stats:
