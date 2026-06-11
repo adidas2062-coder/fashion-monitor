@@ -27,31 +27,26 @@ def to_num(val):
         except ValueError:
             return 0
 
-def parse_musinsa_xls(fpath):
-    if not fpath or not os.path.exists(fpath): return []
-    with open(fpath, 'r', encoding='utf-8-sig') as f:
-        content = f.read()
-    content = re.sub(r' xmlns[^=]*="[^"]*"', '', content)
-    content = re.sub(r'<\?[^>]+\?>', '', content)
-    content = re.sub(r'ss:', '', content)
-    root = ET.fromstring(content)
-    result = []
-    for ws_elem in root.findall('.//Worksheet'):
-        table = ws_elem.find('.//Table')
-        if table is None: continue
-        for i, row_elem in enumerate(table.findall('Row')):
-            if i < 1: continue
-            cells = [c.findtext('Data', '') for c in row_elem.findall('Cell')]
-            if not cells or not cells[0]: continue
-            date_str = cells[0].strip()
-            if len(date_str) >= 10 and re.match(r'\d{4}[\.\-]\d{2}[\.\-]\d{2}', date_str):
-                d = date_str[:10].replace('.', '-')
-                vals = [to_num(v) for v in cells[1:]]
-                # 무신사: 14개 데이터 [결제건, 결제액, 취소건, 취소액, 교환건, 교환액, 반품건, 반품액, 순매출건, 순매출액, ...]
-                # 사용자의 요청에 따라 '결제건수' (index 0) 와 '결제액' (index 1) 사용
-                if len(vals) >= 2:
-                    result.append({"date": d, "orders": vals[0], "revenue": vals[1]})
-    return result
+def parse_musinsa_from_main(fpath):
+    # 판매 통계.xlsx 의 '무신사' 시트를 읽어 커넥트와 에든버러 분리
+    if not fpath or not os.path.exists(fpath): return [], []
+    df = pd.read_excel(fpath, sheet_name='무신사', header=None)
+    conn = []
+    edin = []
+    for _, row in df.iterrows():
+        # Connect: Date=1, Orders=2, Rev=3
+        d_c = str(row.iloc[1]).strip()
+        if re.match(r'\d{4}[\.\-]\d{2}[\.\-]\d{2}', d_c):
+            d_fmt = d_c[:10].replace('.', '-')
+            conn.append({"date": d_fmt, "orders": to_num(row.iloc[2]), "revenue": to_num(row.iloc[3])})
+            
+        # Edinburgh: Date=19, Orders=20, Rev=21
+        if len(row) > 21:
+            d_e = str(row.iloc[19]).strip()
+            if re.match(r'\d{4}[\.\-]\d{2}[\.\-]\d{2}', d_e):
+                d_fmt2 = d_e[:10].replace('.', '-')
+                edin.append({"date": d_fmt2, "orders": to_num(row.iloc[20]), "revenue": to_num(row.iloc[21])})
+    return conn, edin
 
 def parse_29cm_report(fpath):
     if not fpath or not os.path.exists(fpath): return []
@@ -127,14 +122,14 @@ def build_daily_dict(data_list):
 
 def main():
     print("Exporting real sales data...")
-    f_m_c = get_latest("일별주문통계_커넥트킨록_*.xls")
-    f_m_e = get_latest("일별주문통계_에든버러클럽_*.xls")
     f_c_c = get_latest("29CM_커넥트킨록_*.xlsx")
     f_c_e = get_latest("29CM_에든버러클럽_*.xlsx")
     f_g = get_latest("글로벌주문내역_*.xls")
 
-    m_c = build_daily_dict(parse_musinsa_xls(f_m_c))
-    m_e = build_daily_dict(parse_musinsa_xls(f_m_e))
+    main_excel = os.path.join(BD_DIR, "판매 통계.xlsx")
+    m_conn_list, m_edin_list = parse_musinsa_from_main(main_excel)
+    m_c = build_daily_dict(m_conn_list)
+    m_e = build_daily_dict(m_edin_list)
     c_c = build_daily_dict(parse_29cm_report(f_c_c))
     c_e = build_daily_dict(parse_29cm_report(f_c_e))
     
