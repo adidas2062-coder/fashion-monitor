@@ -55,8 +55,17 @@ def _sso_login(page: Page, user_id: str, password: str, totp_keyword: str):
     page.wait_for_load_state("networkidle")
     time.sleep(2)
 
-    # 로그인 폼이 없으면 이미 로그인된 상태
+    # 로그인 폼이 없는 경우: SSO 계정 선택 화면 or 이미 로그인된 상태
     if page.locator('input[name="id"]').count() == 0:
+        # SSO 계정 선택 화면(이전 계정 버튼만 노출) — 버튼 클릭으로 진행
+        if "partner-sso" in page.url:
+            account_btns = page.locator('button:has-text("@")').all()
+            if account_btns:
+                account_btns[0].click()
+                page.wait_for_load_state("networkidle")
+                time.sleep(3)
+                logger.info("[로그인] 계정 선택 완료 (%s)", user_id)
+                return
         logger.info("[로그인] 이미 세션 유효 (%s)", user_id)
         return
 
@@ -141,6 +150,38 @@ def _right_click_export(page: Page, frame: Frame, save_path: Path):
 
 # ── 무신사 다운로드 ──────────────────────────────────────────────────────────
 
+def _select_brand(frame: Frame, brand_name: str):
+    """
+    브랜드명 입력란의 자동완성은 Playwright의 한글 입력으로는 keyup 이벤트가
+    발생하지 않아 동작하지 않는다 (브랜드 미선택 시 S_BRAND_CD가 비어 전체
+    브랜드 데이터가 내려옴). 화면 자동완성 대신 동일한 백엔드 API
+    (/po/util/ac)를 직접 호출해 정확한 브랜드 코드를 찾아 폼에 주입한다.
+    """
+    match = frame.evaluate("""async (brandName) => {
+        const form = document.querySelector('#S_BRAND_NM').closest('form');
+        const fd = new FormData(form);
+        const params = new URLSearchParams();
+        for (const [k, v] of fd.entries()) params.append(k, v);
+        const param = `_AC_ID=S_BRAND_NM&_QRY=${encodeURIComponent(brandName)}&${params.toString()}&UID=${Math.random()}`;
+        const res = await fetch('/po/util/ac', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: param,
+        });
+        const json = await res.json();
+        const found = json.find(r => r.S_BRAND_NM === brandName) || json[0] || null;
+        if (!found) return null;
+        document.querySelector('#S_BRAND_CD').value = found.S_BRAND_CD;
+        document.querySelector('#S_BRAND_NM').value = found.S_BRAND_NM;
+        return found;
+    }""", brand_name)
+
+    if not match:
+        raise RuntimeError(f"브랜드 '{brand_name}' 자동완성 결과 없음")
+
+    logger.info("  [브랜드] %s 선택 완료 (code=%s)", brand_name, match["S_BRAND_CD"])
+
+
 def _download_daily_order_stats(page: Page, brand_name: str, save_path: Path):
     """일별 주문 통계 - 브랜드 지정 다운로드."""
     today = datetime.now().strftime("%Y-%m-%d")
@@ -150,9 +191,7 @@ def _download_daily_order_stats(page: Page, brand_name: str, save_path: Path):
 
     _fill_date(frame, "S_SDATE", "2026-01-01")
     _fill_date(frame, "S_EDATE", today)
-    frame.locator('input[name="S_BRAND_NM"]').first.fill(brand_name)
-    frame.locator('input[name="S_BRAND_NM"]').first.press("Enter")
-    time.sleep(1)
+    _select_brand(frame, brand_name)
     _search(frame)
 
     _right_click_export(page, frame, save_path)
@@ -190,7 +229,8 @@ def _download_29cm_sales(page: Page, save_path: Path):
     # 로그인 후 리다이렉트 위치와 무관하게 통계 페이지로 이동
     page.goto("https://partner-connect.29cm.co.kr/statistics")
     page.wait_for_load_state("networkidle")
-    time.sleep(4)
+    # 계정 전환 후 JS 렌더링 완료까지 버튼이 늦게 뜨므로 명시적 대기
+    page.wait_for_selector('button:has-text("30일")', timeout=60000)
 
     # 30일 버튼 클릭
     page.locator('button:has-text("30일")').first.click()
