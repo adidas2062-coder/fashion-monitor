@@ -71,7 +71,157 @@ def _signal_cards(signals: List[Dict]) -> str:
     return "\n".join(parts)
 
 
-def _ranking_table(items: List[Dict], cat_prefix: str, period: str = "1일") -> str:
+def _md_action_cards(actions: List[Dict]) -> str:
+    if not actions:
+        return '<p class="empty">오늘 우선 처리할 고신뢰 액션이 없습니다.</p>'
+    parts = []
+    for index, action in enumerate(actions, 1):
+        evidence = "".join(
+            f'<span class="action-evidence">{item}</span>'
+            for item in action.get("evidence", [])
+        )
+        parts.append(f"""
+        <article class="action-card">
+          <div class="action-rank">{index}</div>
+          <div class="action-source">{action.get('source','시장 신호')}</div>
+          <h3>{action.get('title','')}</h3>
+          <div class="action-evidence-row">{evidence}</div>
+          <p><b>권장 행동</b> {action.get('action','')}</p>
+          <div class="action-footer">
+            <span>기한 {action.get('deadline','')}</span>
+            <strong>우선순위 {action.get('confidence',0)}점</strong>
+          </div>
+        </article>""")
+    return "\n".join(parts)
+
+
+def _cross_platform_block(rows: List[Dict]) -> str:
+    if not rows:
+        return '<p class="empty">현재 양 플랫폼 공통 반응 브랜드가 없습니다.</p>'
+    trs = []
+    for row in rows[:8]:
+        change = row.get("rank_change")
+        change_text = f"▲{change}" if change and change > 0 else "-"
+        trs.append(
+            f'<tr><td><b>{row.get("brand","")}</b></td>'
+            f'<td>{row.get("musinsa_count",0)}개 / 최고 {row.get("musinsa_best_rank","-")}위</td>'
+            f'<td>{row.get("cm29_count",0)}개 / 최고 {row.get("cm29_best_rank","-")}위</td>'
+            f'<td style="color:#2f9e44;font-weight:700">{change_text}</td>'
+            f'<td>{row.get("score",0)}점</td></tr>'
+        )
+    return (
+        '<table><thead><tr><th>브랜드</th><th>무신사</th><th>29CM</th>'
+        '<th>최고순위 변화</th><th>교차점수</th></tr></thead>'
+        f'<tbody>{"".join(trs)}</tbody></table>'
+    )
+
+
+def _review_insight_block(items: List[Dict]) -> str:
+    if not items:
+        return '<p class="empty">분석 가능한 신규 진입 리뷰가 없습니다.</p>'
+    cards = []
+    for item in items[:6]:
+        review = item.get("review_analysis", {})
+        negative = ", ".join(review.get("top_negative", [])[:3]) or "특이사항 없음"
+        cards.append(
+            f'<div class="review-card"><h3>{item.get("product_name","")}</h3>'
+            f'<p>{item.get("brand","")} · 감성 {review.get("sentiment_score","-")}점</p>'
+            f'<p><b>{review.get("summary","")}</b></p>'
+            f'<p class="muted">주의 키워드: {negative}</p></div>'
+        )
+    return "".join(cards)
+
+
+def _data_status_block(status: Dict) -> str:
+    counts = status.get("counts", {}) if status else {}
+    failed = status.get("failed", []) if status else []
+    state = "일부 수집 실패" if failed else "정상 수집"
+    cls = "status-warning" if failed else "status-ok"
+    details = " / ".join(failed[:3]) if failed else "공개 데이터 기준"
+    return f"""
+    <div class="data-status {cls}">
+      <strong>{state}</strong>
+      <span>무신사 {counts.get('musinsa',0):,}건</span>
+      <span>29CM {counts.get('cm29',0):,}건</span>
+      <span>트렌드 {counts.get('trends',0):,}건</span>
+      <span>기획전 {counts.get('events',0):,}건</span>
+      <span>{details}</span>
+    </div>"""
+
+
+def _backtest_block(rows: List[Dict]) -> str:
+    if not rows:
+        return '<p class="empty">스냅샷이 7일 이상 쌓이면 추천 적중 여부가 표시됩니다.</p>'
+    completed = [
+        row for row in rows
+        if row.get("status") in ("적중", "부분 적중", "실패")
+    ][:3]
+    if completed:
+        cases = "".join(
+            f'<article class="case-card"><span>{row.get("status")}</span>'
+            f'<h3>{row.get("theme") or row.get("keyword","")}</h3>'
+            f'<p>추천점수 {row.get("score",0)}점 · 7일 변화 '
+            f'{row.get("day7_change",0):+.1f}계단</p>'
+            f'<p class="muted">{row.get("reason","")}</p></article>'
+            for row in completed
+        )
+        case_html = f'<h3 class="sub">대표 검증 사례</h3><div class="case-grid">{cases}</div>'
+    else:
+        case_html = '<p class="empty">대표 사례는 7일 검증이 끝난 뒤 자동 선정됩니다.</p>'
+    trs = []
+    colors = {
+        "적중": "#2f9e44",
+        "부분 적중": "#e67700",
+        "실패": "#e03131",
+        "보류": "#6c757d",
+        "검증 대기": "#3b5bdb",
+    }
+    for row in rows[:10]:
+        day3 = "-" if row.get("day3_change") is None else f'{row["day3_change"]:+.1f}'
+        day7 = "-" if row.get("day7_change") is None else f'{row["day7_change"]:+.1f}'
+        status = row.get("status", "검증 대기")
+        trs.append(
+            f'<tr><td>{row.get("signal_date","")}</td>'
+            f'<td><b>{row.get("theme") or row.get("keyword","")}</b></td>'
+            f'<td>{row.get("score",0)}점</td><td>{day3}</td><td>{day7}</td>'
+            f'<td style="color:{colors.get(status,"#555")};font-weight:800">{status}</td>'
+            f'<td class="muted">{row.get("reason","")}</td></tr>'
+        )
+    table = (
+        '<table><thead><tr><th>추천일</th><th>추천</th><th>추천점수</th>'
+        '<th>3일 순위변화</th><th>7일 순위변화</th><th>결과</th><th>판정 근거</th>'
+        f'</tr></thead><tbody>{"".join(trs)}</tbody></table>'
+    )
+    return case_html + table
+
+
+def _methodology_block() -> str:
+    return """
+    <div class="method-grid">
+      <div><b>공개 데이터 출처</b><p>무신사·29CM 공개 랭킹, 무신사 검색어,
+      네이버 데이터랩, Google Trends, Open-Meteo, 공개 상품 리뷰</p></div>
+      <div><b>추천 방식</b><p>검색 상승, 랭킹 변화, 할인·품절, 플랫폼 교차 반응,
+      날씨 적합도를 결합하며 출처가 겹치지 않게 신뢰도 상위 3개를 표시합니다.
+      신뢰도는 성공 확률이 아니라 공개 신호의 상대적 우선순위 점수입니다.</p></div>
+      <div><b>기획전 신호 점수</b><p>트렌드 30점 + 랭킹 25점 + 할인 15점 +
+      품절 10점 + 복수 카테고리 10점 + 작년 동기 10점으로 계산합니다.</p></div>
+      <div><b>플랫폼 교차 점수</b><p>양 플랫폼 동시 진입 35점 + 노출 상품 수
+      최대 40점 + 최근 최고순위 5계단 이상 상승 20점으로 계산합니다.</p></div>
+      <div><b>날씨 액션 점수</b><p>현재는 최고기온과 3일 예보에 따른 규칙 기반
+      68점으로 표시합니다. 백테스트가 쌓이면 계절별 적중률로 보정할 예정입니다.</p></div>
+      <div><b>백테스트 기준</b><p>추천일 대비 3일·7일 후 관련 상품 평균 순위를 비교해
+      적중, 부분 적중, 보류, 실패로 판정합니다.</p></div>
+      <div><b>분석 한계</b><p>공개 랭킹은 실제 판매량과 동일하지 않으며 플랫폼 노출 정책,
+      광고, 재고 변화의 영향을 받을 수 있습니다. 내부 매출은 사용하지 않습니다.</p></div>
+    </div>"""
+
+
+def _ranking_table(
+    items: List[Dict],
+    cat_prefix: str,
+    period: str = "1일",
+    baseline_available: bool = True,
+) -> str:
     """cat_prefix 로 시작하는 카테고리 중 period 일치 항목의 TOP 30 반환."""
     # 대분류_전체 우선, 없으면 대분류_ 시작하는 전체 아이템에서 rank 오름차순
     full_cat = f"{cat_prefix}_전체"
@@ -88,12 +238,19 @@ def _ranking_table(items: List[Dict], cat_prefix: str, period: str = "1일") -> 
         return f'<p class="empty">데이터 없음 (수집 후 표시됩니다)</p>'
     trs = []
     for item in rows:
-        badge = _rank_badge(item.get("rank_change"))
+        comparison_available = item.get(
+            "comparison_available", baseline_available
+        )
+        badge = (
+            _rank_badge(item.get("rank_change"))
+            if comparison_available
+            else '<span class="badge same">대기</span>'
+        )
         price = f"{item.get('price', 0):,}"
         disc  = item.get("discount_rate", 0)
         disc_str = f'<span class="disc">-{disc}%</span>' if disc else ""
         url   = item.get("url", "#")
-        name  = item.get("product_name", "")[:30]
+        name  = item.get("product_name", "")
         brand = item.get("brand", "")
         subcat = item.get("category", "").replace(cat_prefix + "_", "")
         trs.append(f"""
@@ -112,7 +269,12 @@ def _ranking_table(items: List[Dict], cat_prefix: str, period: str = "1일") -> 
     </table>"""
 
 
-def _new_entry_cards(new_entries: List[Dict]) -> str:
+def _new_entry_cards(new_entries: List[Dict], baseline_available: bool = True) -> str:
+    if not baseline_available:
+        return (
+            '<p class="empty">직전 수집일 비교 데이터가 없어 신규 진입 판정 대기 중입니다. '
+            '다음 수집일부터 정확히 표시됩니다.</p>'
+        )
     if not new_entries:
         return '<p class="empty">신규 진입 없음</p>'
     parts = []
@@ -124,7 +286,7 @@ def _new_entry_cards(new_entries: List[Dict]) -> str:
         parts.append(f"""
         <div class="entry-card">
           <div class="entry-cat">{item.get('category','')}</div>
-          <h4><a href="{item.get('url','#')}" target="_blank">{item.get('product_name','')[:25]}</a></h4>
+          <h4><a href="{item.get('url','#')}" target="_blank">{item.get('product_name','')}</a></h4>
           <p class="brand">{item.get('brand','')}</p>
           <p>{price}원 | 핏: {fit}</p>
           <p>★ {rating} ({reviews:,}리뷰)</p>
@@ -178,6 +340,18 @@ def _brand_section(brand_data: List[Dict]) -> str:
             parts.append(f'<span style="color:#888;font-size:12px">랭킹 내 {cnt}개 {change_str}</span>')
             parts.append('</div>')
 
+            history = b.get("history_7d", [])
+            if history:
+                trend = "".join(
+                    f'<span title="{h.get("date","")}" style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:22px;border-radius:6px;background:#f1f3f5;font-size:10px">'
+                    f'{h.get("count",0)}</span>'
+                    for h in history
+                )
+                parts.append(
+                    f'<div style="display:flex;gap:4px;align-items:center;margin-bottom:8px">'
+                    f'<span style="font-size:10px;color:#888;margin-right:3px">최근 흐름</span>{trend}</div>'
+                )
+
             # 상품 목록 (최대 5개)
             if products:
                 parts.append('<table style="width:100%;font-size:12px">')
@@ -196,7 +370,7 @@ def _brand_section(brand_data: List[Dict]) -> str:
                     parts.append(
                         f'<tr><td>{p.get("rank","-")}위 {badge}</td>'
                         f'<td><a href="{p.get("url","#")}" target="_blank" style="color:#1a73e8">'
-                        f'{p.get("product_name","")[:22]}</a></td>'
+                        f'{p.get("product_name","")}</a></td>'
                         f'<td style="color:#888">{p.get("category","").replace("_전체","")}</td>'
                         f'<td><span style="background:{period_color};color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">{period_badge}</span></td>'
                         f'<td>{p.get("price",0):,}원</td></tr>'
@@ -228,6 +402,8 @@ def _cm29_index(cm29_data: List[Dict]) -> str:
         key    = f"{period}|{cat}"
         index.setdefault(key, []).append({
             "rank":          item.get("rank"),
+            "rank_change":   item.get("rank_change"),
+            "comparison_available": item.get("comparison_available", False),
             "product_name":  item.get("product_name", ""),
             "brand":         item.get("brand", ""),
             "price":         item.get("price", 0),
@@ -355,7 +531,7 @@ def _steady_seller_rows(steady: List[Dict]) -> str:
         badge = "🏆" if s.get("is_steady") else "📈"
         trs.append(
             f'<tr><td>{badge}</td>'
-            f'<td><a href="{s.get("url","#")}" target="_blank">{s.get("product_name","")[:25]}</a></td>'
+            f'<td><a href="{s.get("url","#")}" target="_blank">{s.get("product_name","")}</a></td>'
             f'<td>{s.get("brand","")}</td>'
             f'<td>{s.get("appearances",0)}회</td>'
             f'<td>{s.get("best_rank","-")}위</td></tr>'
@@ -377,6 +553,20 @@ def _events_block(musinsa_evs: List[Dict], cm29_evs: List[Dict]) -> str:
             parts.append(
                 f'<div class="event-item">'
                 f'<span class="event-title">{e["title"]}</span>'
+                f'<span class="event-badge">{badge}</span>'
+                f'</div>'
+            )
+    else:
+        parts.append('<p class="empty">수집 중</p>')
+    parts.append('</div>')
+
+    parts.append('<div style="margin-top:14px"><h3 style="font-size:13px;color:#555;margin-bottom:8px">🛍 29CM 에디션</h3>')
+    if cm29_evs:
+        for e in cm29_evs[:6]:
+            badge = e.get("period") or f'{e.get("item_count",0)}개 상품'
+            parts.append(
+                f'<div class="event-item">'
+                f'<span class="event-title">{e.get("title","")}</span>'
                 f'<span class="event-badge">{badge}</span>'
                 f'</div>'
             )
@@ -467,6 +657,12 @@ def generate(
     cm29_evs: Optional[List[Dict]] = None,
     mat_color: Optional[Dict] = None,
     cat_growth: Optional[List[Dict]] = None,
+    md_actions: Optional[List[Dict]] = None,
+    cross_platform: Optional[List[Dict]] = None,
+    reviewed_entries: Optional[List[Dict]] = None,
+    data_status: Optional[Dict] = None,
+    backtests: Optional[List[Dict]] = None,
+    history_dates: Optional[List[str]] = None,
 ) -> str:
     """
     대시보드 HTML 생성 후 파일 저장.
@@ -497,6 +693,7 @@ def generate(
             overall_index.setdefault(key, []).append({
                 "rank":          item.get("rank"),
                 "rank_change":   item.get("rank_change"),
+                "comparison_available": item.get("comparison_available", False),
                 "product_name":  item.get("product_name", ""),
                 "brand":         item.get("brand", ""),
                 "price":         item.get("price", 0),
@@ -520,6 +717,7 @@ def generate(
         return {
             "rank":          i.get("rank"),
             "rank_change":   i.get("rank_change"),
+            "comparison_available": i.get("comparison_available", False),
             "product_name":  i.get("product_name", ""),
             "brand":         i.get("brand", ""),
             "price":         i.get("price", 0),
@@ -561,7 +759,7 @@ def generate(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>패션 MD 모니터링 대시보드 — {today_str}</title>
+<title>패션 MD 마켓 인텔리전스 — {today_str}</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {{
@@ -601,6 +799,7 @@ def generate(
   table {{ width:100%; border-collapse:collapse; font-size:13px; }}
   thead th {{ background:#f8f9fa; padding:8px 10px; text-align:left; font-weight:700; font-size:11px; color:var(--muted); border-bottom:1.5px solid var(--border); text-transform:uppercase; letter-spacing:.5px; }}
   td {{ padding:8px 10px; border-bottom:1px solid #f3f4f6; vertical-align:middle; }}
+  td a, .entry-card h4 a {{ overflow-wrap:anywhere; word-break:keep-all; }}
   tbody tr:hover {{ background:#f5f7ff; }}
   a {{ color:var(--accent); text-decoration:none; }}
   a:hover {{ text-decoration:underline; }}
@@ -636,6 +835,42 @@ def generate(
   .entry-cat {{ font-size:10px; color:var(--accent); font-weight:800; margin-bottom:5px; letter-spacing:.8px; text-transform:uppercase; }}
   .entry-card h4 {{ font-size:13px; margin-bottom:4px; line-height:1.4; }}
   .entry-card .brand {{ color:var(--muted); font-size:12px; margin-bottom:5px; }}
+  /* ── 오늘의 액션 ── */
+  .action-section {{ background:linear-gradient(135deg,#f5f7ff,#fff); }}
+  .action-grid {{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }}
+  .action-card {{ position:relative; border:1px solid #dfe4ff; border-radius:14px; padding:16px; background:#fff; }}
+  .action-rank {{ position:absolute;right:14px;top:14px;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800; }}
+  .action-source {{ color:var(--accent);font-size:11px;font-weight:800;margin-bottom:5px; }}
+  .action-card h3 {{ font-size:15px;padding-right:34px;margin-bottom:10px; }}
+  .action-card p {{ font-size:12px;margin-top:10px; }}
+  .action-evidence-row {{ display:flex;flex-wrap:wrap;gap:5px; }}
+  .action-evidence {{ background:#eef1ff;color:#364fc7;border-radius:12px;padding:2px 7px;font-size:11px; }}
+  .action-footer {{ display:flex;justify-content:space-between;margin-top:12px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--muted); }}
+  .action-footer strong {{ color:var(--accent); }}
+  .data-status {{ display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:8px 12px;margin-bottom:14px;border-radius:10px;font-size:11px; }}
+  .status-ok {{ background:#ebfbee;color:#2b8a3e; }}
+  .status-warning {{ background:#fff4e6;color:#d9480f; }}
+  .review-grid {{ display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px; }}
+  .review-card {{ border:1px solid var(--border);border-radius:10px;padding:12px; }}
+  .review-card h3 {{ font-size:12px;margin-bottom:5px; }}
+  .review-card p {{ font-size:11px; }}
+  .muted {{ color:var(--muted); }}
+  .method-grid {{ display:grid;grid-template-columns:1fr 1fr;gap:12px; }}
+  .method-grid>div {{ background:#f8f9fa;border-radius:10px;padding:13px; }}
+  .method-grid p {{ color:var(--muted);font-size:12px;margin-top:5px; }}
+  .case-grid {{ display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px; }}
+  .case-card {{ border:1px solid var(--border);border-radius:10px;padding:12px; }}
+  .case-card span {{ color:var(--accent);font-size:11px;font-weight:800; }}
+  .case-card h3 {{ font-size:13px;margin:4px 0; }}
+  .case-card p {{ font-size:11px; }}
+  details.section {{ padding:0; overflow:hidden; }}
+  details.section>summary {{ list-style:none;cursor:pointer;padding:18px 24px;font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px; }}
+  details.section>summary::-webkit-details-marker {{ display:none; }}
+  details.section>summary::after {{ content:'▾';margin-left:auto;color:var(--muted);font-size:14px;display:inline-block;transition:transform .2s; }}
+  details.section:not([open])>summary::after {{ transform:rotate(-90deg); }}
+  details.section>.detail-body {{ padding:0 24px 22px; }}
+  @media(max-width:900px){{ .action-grid{{grid-template-columns:1fr;}} }}
+  @media(max-width:700px){{ .method-grid,.case-grid{{grid-template-columns:1fr;}} }}
   /* ── 기획전 이벤트 ── */
   .event-item {{ display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #f3f4f6; }}
   .event-item:last-child {{ border-bottom:none; }}
@@ -653,8 +888,8 @@ def generate(
 <body>
 <header>
   <div class="header-inner">
-    <h1>👗 패션 MD 모니터링 대시보드</h1>
-    <span class="meta">마지막 업데이트: {now_str}</span>
+    <h1>패션 MD 마켓 인텔리전스</h1>
+    <span class="meta">공개 데이터 기반 · 마지막 업데이트: {now_str}</span>
   </div>
 </header>
 <div class="container">
@@ -662,6 +897,9 @@ def generate(
   <!-- 빠른 이동 -->
   <nav class="nav-bar">
     <div class="nav-inner">
+      <a class="nav-item" href="#md-actions">✅ 오늘의 액션</a>
+      <a class="nav-item" href="#watch-brands">🏷 관심 브랜드</a>
+      <a class="nav-item" href="#cross-platform">↔ 교차 상승</a>
       <a class="nav-item" href="#musinsa-ranking">🏆 무신사 랭킹</a>
       <a class="nav-item" href="#cm29-ranking">🛍 29CM 랭킹</a>
       <a class="nav-item" href="#new-entries">⬆ 신규 진입</a>
@@ -670,14 +908,27 @@ def generate(
       <a class="nav-item" href="#events">🎪 기획전 현황</a>
       <a class="nav-item" href="#brand-ranking">📊 브랜드 랭킹</a>
       <a class="nav-item" href="#trends">📈 트렌드</a>
+      <a class="nav-item" href="#backtest">🧪 백테스트</a>
+      <a class="nav-item" href="#methodology">📖 방법론</a>
       <a class="nav-item" href="#steady">🏅 스테디셀러</a>
-      <a class="nav-item" href="#watch-brands">🏷 관심 브랜드</a>
     </div>
   </nav>
 
+  {_data_status_block(data_status or {})}
+
+  <details id="md-actions" class="section action-section" open>
+    <summary>✅ 오늘의 MD 액션</summary>
+    <div class="detail-body">
+    <div class="action-grid">{_md_action_cards(md_actions or [])}</div>
+    </div>
+  </details>
+
+  {_weather_block(weather_data)}
+
   <!-- 1. 무신사 랭킹 TOP 30 -->
-  <div id="musinsa-ranking" class="section">
-    <h2>🏆 무신사 랭킹 TOP 30 <span class="line"></span></h2>
+  <details id="musinsa-ranking" class="section" open>
+    <summary>🏆 무신사 랭킹 TOP 30</summary>
+    <div class="detail-body">
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
       <div class="tabs" id="gender-tabs">
         <div class="tab active" onclick="switchGender('남성',this)">👔 남성</div>
@@ -696,13 +947,20 @@ def generate(
     </div>
     <div id="sub-cat-tabs" class="tabs" style="margin-bottom:12px;flex-wrap:wrap"></div>
     <div id="ranking-table-area">
-      {_ranking_table(items,'상의','1일')}
+      {_ranking_table(
+          items,
+          '상의',
+          '1일',
+          rank_diff_result.get('baseline_available', True),
+      )}
     </div>
-  </div>
+    </div>
+  </details>
 
   <!-- 2. 29CM 남성 베스트 -->
-  <div id="cm29-ranking" class="section">
-    <h2>🛍 29CM 남성 베스트 TOP 30 <span class="line"></span></h2>
+  <details id="cm29-ranking" class="section" open>
+    <summary>🛍 29CM 남성 베스트 TOP 30</summary>
+    <div class="detail-body">
     <div class="tabs" id="cm29-cat-tabs" style="margin-bottom:12px;flex-wrap:wrap">
       <div class="tab active" onclick="switchCm29Cat('남성_전체',this)">전체</div>
       <div class="tab" onclick="switchCm29Cat('남성_상의',this)">상의</div>
@@ -712,27 +970,57 @@ def generate(
       <div class="tab" onclick="switchCm29Cat('남성_니트웨어',this)">니트웨어</div>
     </div>
     <div id="cm29-table-area"></div>
-  </div>
+    </div>
+  </details>
 
   <!-- 3. 신규 진입 상품 -->
-  <div id="new-entries" class="section">
-    <h2>⬆ 오늘의 신규 진입 상품 <span class="line"></span></h2>
+  <details id="new-entries" class="section" open>
+    <summary>⬆ 오늘의 신규 진입 상품</summary>
+    <div class="detail-body">
     <div class="entry-grid">
-      {_new_entry_cards(rank_diff_result.get('new_entries', []))}
+      {_new_entry_cards(
+          rank_diff_result.get('new_entries', []),
+          rank_diff_result.get('baseline_available', True),
+      )}
     </div>
-  </div>
+    </div>
+  </details>
+
+  <details id="review-insights" class="section" open>
+    <summary>💬 신규 진입 리뷰 인사이트</summary>
+    <div class="detail-body">
+    <div class="review-grid">{_review_insight_block(reviewed_entries or [])}</div>
+    </div>
+  </details>
 
   <!-- 4. 기획전 시그널 -->
-  <div id="signals" class="section signal-section">
-    <h2>🎯 기획전 타이밍 시그널 <span class="line"></span></h2>
+  <details id="signals" class="section signal-section" open>
+    <summary>🎯 기획전 타이밍 시그널</summary>
+    <div class="detail-body">
     <div class="signal-grid">
       {_signal_cards(signals)}
     </div>
-  </div>
+    </div>
+  </details>
+
+  <details id="watch-brands" class="section" open>
+    <summary>🏷 관심 브랜드 현황</summary>
+    <div class="detail-body">
+    {_brand_section(brand_data)}
+    </div>
+  </details>
+
+  <details id="cross-platform" class="section" open>
+    <summary>↔ 무신사 · 29CM 교차 상승</summary>
+    <div class="detail-body">
+    {_cross_platform_block(cross_platform or [])}
+    </div>
+  </details>
 
   <!-- 5. 실시간 검색어 + 트렌드 예측 -->
-  <div id="keywords" class="section">
-    <h2>🔍 무신사 실시간 검색어 & 트렌드 예측 <span class="line"></span></h2>
+  <details id="keywords" class="section" open>
+    <summary>🔍 무신사 실시간 검색어 & 트렌드 예측</summary>
+    <div class="detail-body">
     <div class="col-2">
       <div>
         <h3 class="sub">실시간 검색어 TOP 20</h3>
@@ -743,17 +1031,21 @@ def generate(
         {_forecast_table(forecasts or [])}
       </div>
     </div>
-  </div>
+    </div>
+  </details>
 
   <!-- 6. 기획전 현황 -->
-  <div id="events" class="section">
-    <h2>🎪 기획전 & 에디션 현황 <span class="line"></span></h2>
+  <details id="events" class="section" open>
+    <summary>🎪 기획전 & 에디션 현황</summary>
+    <div class="detail-body">
     {_events_block(musinsa_evs or [], cm29_evs or [])}
-  </div>
+    </div>
+  </details>
 
   <!-- 7. 브랜드 랭킹 & 카테고리 성장률 -->
-  <div id="brand-ranking" class="section">
-    <h2>📊 브랜드 랭킹 & 카테고리 성장률 <span class="line"></span></h2>
+  <details id="brand-ranking" class="section" open>
+    <summary>📊 브랜드 랭킹 & 카테고리 성장률</summary>
+    <div class="detail-body">
     <div class="col-2">
       <div>
         <h3 class="sub">🏆 무신사 브랜드 TOP 15</h3>
@@ -764,37 +1056,51 @@ def generate(
         {_cat_growth_block(cat_growth or [])}
       </div>
     </div>
-  </div>
+    </div>
+  </details>
 
   <!-- 8. 트렌드 & 가격 분포 -->
-  <div id="trends" class="section">
-    <h2>📈 트렌드 & 가격 분포 <span class="line"></span></h2>
+  <details id="trends" class="section" open>
+    <summary>📈 트렌드 & 가격 분포</summary>
+    <div class="detail-body">
     <div class="chart-row">
       <div><canvas id="trendChart" height="200"></canvas></div>
       <div><canvas id="priceChart" height="200"></canvas></div>
     </div>
-  </div>
+    </div>
+  </details>
 
   <!-- 9. 스테디셀러 -->
-  <div id="steady" class="section">
-    <h2>🏅 스테디셀러 (연속 TOP 10) <span class="line"></span></h2>
+  <details id="steady" class="section" open>
+    <summary>🏅 스테디셀러 (연속 TOP 10)</summary>
+    <div class="detail-body">
     {_steady_seller_rows(steady or [])}
-  </div>
-
-  <!-- 10. 날씨 & 수요 예측 (참고용) -->
-  {_weather_block(weather_data)}
+    </div>
+  </details>
 
   <!-- 11. 소재·색상 트렌드 -->
-  <div class="section">
-    <h2>🧵 신규 진입 소재·색상 트렌드 <span class="line"></span></h2>
+  <details class="section" open>
+    <summary>🧵 신규 진입 소재·색상 트렌드</summary>
+    <div class="detail-body">
     {_material_color_block(mat_color or {})}
-  </div>
+    </div>
+  </details>
 
-  <!-- 12. 관심 브랜드 현황 -->
-  <div id="watch-brands" class="section">
-    <h2>🏷 관심 브랜드 현황 <span class="line"></span></h2>
-    {_brand_section(brand_data)}
-  </div>
+  <details id="backtest" class="section" open>
+    <summary>🧪 과거 추천 백테스트</summary>
+    <div class="detail-body">
+    <p class="muted" style="margin-bottom:10px">성과가 좋은 추천만 선별하지 않고 검증 가능한 모든 추천을 같은 기준으로 평가합니다.</p>
+    {_backtest_block(backtests or [])}
+    </div>
+  </details>
+
+  <details id="methodology" class="section" open>
+    <summary>📖 데이터 출처와 분석 방법론</summary>
+    <div class="detail-body">
+    {_methodology_block()}
+    <p class="muted" style="margin-top:12px">보유 스냅샷: {len(history_dates or [])}일 · {", ".join((history_dates or [])[-7:]) or "수집 시작 전"}</p>
+    </div>
+  </details>
 
 </div>
 
@@ -802,6 +1108,9 @@ def generate(
 // 랭킹 데이터
 const rankingData  = {ranking_json};   // 남성(gf=M)
 const overallData  = {overall_json};   // 전체(gf=A)
+const rankingBaselineAvailable = {
+    json.dumps(rank_diff_result.get("baseline_available", True))
+};
 let currentGender  = '남성';           // 현재 선택 성별
 
 // 세분류 정의
@@ -835,7 +1144,8 @@ function renderRankingTable() {{
   visibleRows.forEach(r => {{
     const ch = r.rank_change;
     let badge = '';
-    if (ch === null || ch === undefined) badge = '<span class="badge new">NEW</span>';
+    if (!r.comparison_available) badge = '<span class="badge same">대기</span>';
+    else if (ch === null || ch === undefined) badge = '<span class="badge new">NEW</span>';
     else if (ch > 0) badge = '<span class="badge up">▲' + ch + '</span>';
     else if (ch < 0) badge = '<span class="badge down">▼' + Math.abs(ch) + '</span>';
     else badge = '<span class="badge same">→</span>';
@@ -843,7 +1153,7 @@ function renderRankingTable() {{
     const subcat = (r.category || '').replace(currentMainCat + '_', '');
     const review = r.review_count ? Number(r.review_count).toLocaleString() + '개' : '-';
     html += '<tr><td>' + r.rank + '</td><td>' + badge + '</td>';
-    html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '').slice(0, 30) + '</a></td>';
+    html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '') + '</a></td>';
     html += '<td>' + (r.brand || '') + '</td>';
     html += '<td>' + Number(r.price).toLocaleString() + '원 ' + disc + '</td>';
     html += '<td style="color:#888;font-size:11px">' + review + '</td>';
@@ -924,14 +1234,21 @@ function renderCm29Table() {{
     return;
   }}
   const visibleRows = cm29Expanded ? allRows : allRows.slice(0, 10);
-  let html = '<table><thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th>가격</th><th>리뷰</th><th>평점</th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>#</th><th>변동</th><th>상품명</th><th>브랜드</th><th>가격</th><th>리뷰</th><th>평점</th></tr></thead><tbody>';
   visibleRows.forEach(r => {{
+    const ch = r.rank_change;
+    let badge = '';
+    if (!r.comparison_available) badge = '<span class="badge same">대기</span>';
+    else if (ch === null || ch === undefined) badge = '<span class="badge new">NEW</span>';
+    else if (ch > 0) badge = '<span class="badge up">▲' + ch + '</span>';
+    else if (ch < 0) badge = '<span class="badge down">▼' + Math.abs(ch) + '</span>';
+    else badge = '<span class="badge same">→</span>';
     const disc   = r.discount_rate ? '<span class="disc">-' + r.discount_rate + '%</span>' : '';
     const score  = r.review_score ? '★' + r.review_score : '-';
     const review = r.review_count ? Number(r.review_count).toLocaleString() + '개' : '-';
     const sold   = r.is_sold_out ? ' <span style="color:#e74c3c;font-size:10px">품절</span>' : '';
-    html += '<tr><td>' + r.rank + '</td>';
-    html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '').slice(0, 30) + '</a>' + sold + '</td>';
+    html += '<tr><td>' + r.rank + '</td><td>' + badge + '</td>';
+    html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '') + '</a>' + sold + '</td>';
     html += '<td>' + (r.brand || '') + '</td>';
     html += '<td>' + Number(r.price).toLocaleString() + '원 ' + disc + '</td>';
     html += '<td style="color:#888;font-size:11px">' + review + '</td>';
@@ -961,7 +1278,12 @@ renderCm29Table();
 
 // 트렌드 차트
 const td = {trend_json};
-if (td.labels.length) {{
+const pd = {price_json};
+let chartsRendered = false;
+function renderCharts() {{
+  if (chartsRendered) return;
+  chartsRendered = true;
+  if (td.labels.length) {{
   new Chart(document.getElementById('trendChart'), {{
     type: 'bar',
     data: {{
@@ -978,11 +1300,10 @@ if (td.labels.length) {{
       scales: {{ y: {{ beginAtZero: true, max: 100 }} }}
     }}
   }});
-}}
+  }}
 
 // 가격 분포 차트
-const pd = {price_json};
-if (pd.labels.length) {{
+  if (pd.labels.length) {{
   new Chart(document.getElementById('priceChart'), {{
     type: 'bar',
     data: {{
@@ -999,13 +1320,38 @@ if (pd.labels.length) {{
       scales: {{ y: {{ beginAtZero: true }} }}
     }}
   }});
+  }}
 }}
+
+const chartSection = document.getElementById('trends');
+chartSection.addEventListener('toggle', () => {{
+  if (chartSection.open) renderCharts();
+}});
+if ('IntersectionObserver' in window) {{
+  const chartObserver = new IntersectionObserver(entries => {{
+    if (entries.some(entry => entry.isIntersecting)) {{
+      renderCharts();
+      chartObserver.disconnect();
+    }}
+  }}, {{ rootMargin: '200px' }});
+  chartObserver.observe(chartSection);
+}} else {{
+  renderCharts();
+}}
+
+document.querySelectorAll('.nav-item[href^="#"]').forEach(link => {{
+  link.addEventListener('click', () => {{
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target && target.tagName === 'DETAILS') target.open = true;
+  }});
+}});
 </script>
 </body>
 </html>"""
 
-    os.makedirs("data", exist_ok=True)
+    html = "\n".join(line.rstrip() for line in html.splitlines()) + "\n"
     path = config.DASHBOARD_OUTPUT_PATH
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
 
