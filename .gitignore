@@ -5,6 +5,7 @@ config.py
 data/dashboard.html
 data/backup_*.csv
 data/reports/
+data/snapshots/
 
 # 로그
 logs/

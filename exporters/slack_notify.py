@@ -129,28 +129,13 @@ def send_daily_summary(
         for i in new_entries
     ) if new_entries else "  없음"
 
-    # 기획전 시그널
-    signal_blocks = []
-    for s in signals:
-        issues_str = " · ".join(s.get("issues", []))
-        signal_blocks.append({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": (
-                    f"{s['level']} *{s['keyword']}* 기획전 시그널 _(신뢰도 {s.get('score',0)}점)_\n"
-                    f"  트렌드 +{s.get('trend_pct',0):.0f}%"
-                    + (f"  |  ⚠️ {issues_str}" if issues_str else "") + "\n"
-                    f"  → *{s.get('theme','')}*\n"
-                    f"  📅 권장 오픈일: `{s.get('open_label','')}`"
-                )
-            }
-        })
-
-    signal_section = signal_blocks if signal_blocks else [{
-        "type": "section",
-        "text": {"type": "mrkdwn", "text": "  시그널 없음"}
-    }]
+    # 기획전 시그널 (요약 1줄씩 — 🟡주의/🔴긴급은 별도 즉시 알림으로 상세 발송됨)
+    signal_lines = [
+        f"  {s.get('level','🟢 참고')} *{s.get('keyword','')}* ({s.get('score',0)}점) "
+        f"→ {s.get('theme','')}  ·  📅{s.get('open_label','')}"
+        for s in signals
+    ]
+    signal_text = "\n".join(signal_lines) if signal_lines else "  시그널 없음"
 
     blocks = [
         {"type": "header", "text": {"type": "plain_text", "text": f"👗 패션 모니터 일일 리포트 — {today_str} 09:00"}},
@@ -163,8 +148,7 @@ def send_daily_summary(
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*🛍 29CM 남성 TOP3*\n{cm29_text}"}},
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*⬆ 신규 진입 ({len(new_entries)}건)*\n{new_text}"}},
         {"type": "divider"},
-        {"type": "section", "text": {"type": "mrkdwn", "text": "*🎯 기획전 시그널*"}},
-        *signal_section,
+        {"type": "section", "text": {"type": "mrkdwn", "text": f"*🎯 기획전 시그널 ({len(signals)}건)*\n{signal_text}"}},
         {"type": "context", "elements": [{"type": "mrkdwn", "text": f"패션 모니터 | {now.strftime('%H:%M')} KST"}]},
     ]
     blocks = [b for b in blocks if b]  # None 제거

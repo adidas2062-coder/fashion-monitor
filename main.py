@@ -14,7 +14,7 @@ import logging
 import os
 import sys
 import time
-from datetime import date
+from datetime import date, timedelta
 
 import config
 
@@ -110,15 +110,17 @@ def run(dry_run: bool = False) -> None:
     today_rankings = _run("무신사 남성 랭킹 수집", musinsa.collect, periods=periods, gf="M") or []
     time.sleep(config.REQUEST_DELAY)
 
-    # 전체 랭킹 (gf=A) — 1일만, 카카오 요약용
-    all_overall = _run("무신사 전체 랭킹 수집", musinsa.collect,
-                       periods=["DAILY"],
-                       categories={"상의_전체":"001000","아우터_전체":"002000","바지_전체":"003000"},
-                       gf="A") or []
+    # 대시보드는 남성·전체 모두 같은 기간과 카테고리 범위를 제공한다.
+    all_periods = ["DAILY", "WEEKLY", "MONTHLY"]
+    all_overall = _run(
+        "무신사 전체 랭킹 수집",
+        musinsa.collect,
+        periods=all_periods,
+        gf="A",
+    ) or []
     time.sleep(config.REQUEST_DELAY)
 
     # 대시보드용 — 항상 3개 기간 모두 수집 (표시 전용, 노션 미저장)
-    all_periods = ["DAILY", "WEEKLY", "MONTHLY"]
     if set(periods) == set(all_periods):
         dashboard_rankings = today_rankings
     else:
@@ -162,21 +164,64 @@ def run(dry_run: bool = False) -> None:
     trend_data   = google_data + naver_data + insta_data + keyword_data
     logger.info("트렌드 데이터 합계: %d건 (검색어 %d건 포함)", len(trend_data), len(keyword_data))
 
-    # ── 2. 어제 랭킹 조회 (순위 변동 비교용) ─────────────────────────────────
+    # 비교는 같은 기간끼리 수행한다. 운영 시그널은 일간 랭킹만 사용한다.
+    from exporters import snapshot_store
+    previous_dashboard_rankings = snapshot_store.load_latest_before(
+        "musinsa_rankings", today.isoformat(), weekdays_only=True
+    )
+    previous_daily_rankings = [
+        item for item in previous_dashboard_rankings
+        if item.get("period", "1일") == "1일"
+    ]
+    previous_cm29 = snapshot_store.load_latest_before(
+        "cm29_rankings", today.isoformat(), weekdays_only=True
+    )
+    previous_overall = snapshot_store.load_latest_before(
+        "musinsa_overall", today.isoformat(), weekdays_only=True
+    )
+
+    # 날짜별 전체 원본은 노션 저장 여부와 무관하게 항상 보존한다.
+    _run("무신사 전체 스냅샷 저장", snapshot_store.save, "musinsa_rankings", dashboard_rankings)
+    _run("무신사 전체성별 스냅샷 저장", snapshot_store.save, "musinsa_overall", all_overall)
+    _run("29CM 스냅샷 저장", snapshot_store.save, "cm29_rankings", cm29_data)
+    _run("트렌드 스냅샷 저장", snapshot_store.save, "trends", trend_data)
+    ranking_history_14d = snapshot_store.load_history("musinsa_rankings", limit=14)
+    trend_history_28d = snapshot_store.load_history("trends", limit=28)
+
+    # ── 2. 직전 수집일 랭킹 조회 (순위 변동 비교용) ──────────────────────────
     from exporters import notion_exporter
 
-    yesterday_rankings = _run("노션 어제 랭킹 조회", notion_exporter.fetch_yesterday_rankings) or []
+    previous_cm29 = previous_cm29 or (
+        _run(
+            "노션 29CM 직전 수집일 랭킹 조회",
+            notion_exporter.fetch_latest_cm29_before,
+            today,
+        ) or []
+    )
+
+    yesterday_rankings = previous_daily_rankings or (
+        _run(
+            "노션 직전 수집일 랭킹 조회",
+            notion_exporter.fetch_latest_rankings_before,
+            today,
+        ) or []
+    )
 
     # ── 3. 분석 ───────────────────────────────────────────────────────────────
     from analyzers import rank_diff, new_entry, price_analysis, brand_tracker, timing_signal
 
-    rank_result  = _run("순위 변동 분석", rank_diff.analyze, today_rankings, yesterday_rankings) or {
-        "items": today_rankings, "top_risers": [], "top_fallers": [],
+    today_daily_rankings = [
+        item for item in today_rankings
+        if item.get("period", "1일") == "1일"
+    ]
+    rank_result  = _run("순위 변동 분석", rank_diff.analyze, today_daily_rankings, yesterday_rankings) or {
+        "items": today_daily_rankings, "top_risers": [], "top_fallers": [],
         "new_entries": [], "dropouts": [], "summary": "",
+        "baseline_available": False,
     }
     time.sleep(0.5)
 
-    # 신규 진입 상세 수집 — 어제 데이터 없는 첫 실행 시 전체가 신규가 되므로 상한 적용
+    # 신규 진입 상세 수집 — 비교 기준이 없는 첫 실행은 신규 판정을 보류한다.
     _MAX_NEW_ENTRY_DETAIL = 30
     raw_new = rank_result.get("new_entries", [])
     if len(raw_new) > _MAX_NEW_ENTRY_DETAIL:
@@ -185,35 +230,168 @@ def run(dry_run: bool = False) -> None:
     new_entries  = _run("신규 진입 상품 상세 수집", new_entry.enrich, raw_new) or []
     time.sleep(config.REQUEST_DELAY)
 
-    price_result = _run("가격대 분포 분석", price_analysis.analyze, today_rankings, yesterday_rankings) or {}
-    brand_result = _run("브랜드 트래킹", brand_tracker.analyze, today_rankings, yesterday_rankings) or []
-    signals      = _run("기획전 시그널 감지", timing_signal.detect, trend_data, rank_result, archive_data) or []
+    price_result = _run("가격대 분포 분석", price_analysis.analyze, today_daily_rankings, yesterday_rankings) or {}
+    brand_result = _run("브랜드 트래킹", brand_tracker.analyze, today_daily_rankings, yesterday_rankings) or []
+
+    # ── 과거 시그널 백테스트 — timing_signal.detect()보다 먼저 계산해
+    #    적중률 가중치를 오늘의 스코어링/MD 액션에 피드백한다.
+    from analyzers import signal_backtest
+    signal_dates = snapshot_store.available_dates("signals")
+    signals_by_date = {
+        d: snapshot_store.load("signals", d) for d in signal_dates
+    }
+    # +3일/+7일 정확한 날짜에 수집 실패(휴일 등)가 있어도 백테스트가 보류 상태로
+    # 멈추지 않도록, signal_backtest._nearest_snapshot_date()가 탐색할 수 있는
+    # 여유분(최대 +3일)까지 함께 로드 대상에 포함한다.
+    required_ranking_dates = set()
+    for signal_date in signal_dates:
+        base = date.fromisoformat(signal_date)
+        required_ranking_dates.add(signal_date)
+        for target_days in (3, 7):
+            for fallback_offset in range(0, 4):
+                required_ranking_dates.add(
+                    (base + timedelta(days=target_days + fallback_offset)).isoformat()
+                )
+    available_ranking_dates = set(
+        snapshot_store.available_dates("musinsa_rankings")
+    )
+    backtests = _run(
+        "과거 시그널 백테스트",
+        signal_backtest.evaluate,
+        signals_by_date,
+        {
+            d: snapshot_store.load("musinsa_rankings", d)
+            for d in required_ranking_dates
+            if d in available_ranking_dates
+        },
+    ) or []
+    backtest_stats = _run("백테스트 통계 집계", signal_backtest.aggregate_stats, backtests) or {}
+    backtest_keyword_weights = _run(
+        "백테스트 키워드 가중치 산출", signal_backtest.keyword_hit_weights, backtests
+    ) or {}
+
+    signals      = _run(
+        "기획전 시그널 감지",
+        timing_signal.detect,
+        trend_data, rank_result, archive_data, weather_data,
+        backtest_keyword_weights,
+        ranking_history_14d,
+    ) or []
 
     # 신규 모듈
     from analyzers import material_color_trend, category_growth
     mat_color    = _run("소재·색상 트렌드 집계", material_color_trend.analyze, new_entries) or {}
-    cat_growth: list = []
-    if config.NOTION_API_KEY and config.NOTION_RANKING_DB_ID:
-        from notion_client import Client as _NC
-        _nc = _NC(auth=config.NOTION_API_KEY)
-        cat_growth = _run("카테고리 성장률 분석", category_growth.analyze, _nc, config.NOTION_RANKING_DB_ID) or []
+    cat_growth = _run(
+        "카테고리 성장률 분석",
+        category_growth.analyze_items_history,
+        ranking_history_14d,
+    ) or []
 
     # 신규 진입 리뷰 키워드 분석
     from analyzers import review_keywords, steady_seller, trend_forecast
     reviewed_entries = _run("리뷰 키워드 분석", review_keywords.analyze_batch, new_entries[:10]) or []
 
-    # 스테디셀러 감지 (노션 데이터 기반)
-    steady = []
-    if config.NOTION_API_KEY and config.NOTION_RANKING_DB_ID:
-        from notion_client import Client
-        _nc = Client(auth=config.NOTION_API_KEY)
-        steady = _run("스테디셀러 감지", steady_seller.detect_from_notion,
-                      _nc, config.NOTION_RANKING_DB_ID) or []
+    ranking_history = ranking_history_14d[-7:]
+    brand_result = brand_tracker.attach_history(brand_result, ranking_history)
+
+    from analyzers import platform_cross, md_actions
+    cross_platform = _run(
+        "무신사·29CM 교차 분석",
+        platform_cross.analyze,
+        today_daily_rankings,
+        cm29_data,
+        previous_daily_rankings,
+        previous_cm29,
+    ) or []
+    md_action_items = _run(
+        "오늘의 MD 액션 생성",
+        md_actions.build,
+        signals,
+        weather_data,
+        cross_platform,
+        reviewed_entries,
+        3,
+        backtest_stats,
+    ) or []
+
+    steady = _run(
+        "스테디셀러 감지",
+        steady_seller.detect_from_items,
+        ranking_history_14d,
+    ) or []
 
     # 트렌드 예측
-    forecasts = _run("트렌드 예측", trend_forecast.forecast_from_trend_data, [trend_data]) or []
+    forecasts = _run(
+        "트렌드 예측",
+        trend_forecast.forecast_from_trend_data,
+        list(reversed(trend_history_28d)),
+    ) or []
 
-    # ── 4. 저장 ───────────────────────────────────────────────────────────────
+    # ── 4. 대시보드 생성 ──────────────────────────────────────────────────────
+    # 느린 외부 저장 전에 오늘 결과를 먼저 확인할 수 있게 한다.
+    from analyzers import rank_diff as _rd
+    dashboard_rank_result = _rd.analyze(
+        dashboard_rankings, previous_dashboard_rankings
+    ) if previous_dashboard_rankings else {
+        "items": dashboard_rankings,
+        "top_risers": [],
+        "top_fallers": [],
+        "new_entries": [],
+        "dropouts": [],
+        "summary": "",
+        "baseline_available": False,
+    }
+    overall_rank_result = _rd.analyze(
+        all_overall, previous_overall
+    ) if previous_overall else {
+        "items": all_overall,
+        "top_risers": [],
+        "top_fallers": [],
+        "new_entries": [],
+        "dropouts": [],
+        "summary": "",
+        "baseline_available": False,
+    }
+    cm29_rank_result = _rd.analyze(
+        cm29_data, previous_cm29
+    ) if previous_cm29 else {
+        "items": cm29_data,
+        "top_risers": [],
+        "top_fallers": [],
+        "new_entries": [],
+        "dropouts": [],
+        "summary": "",
+        "baseline_available": False,
+    }
+
+    from exporters import dashboard
+    dash_path = _run(
+        "HTML 대시보드 생성",
+        dashboard.generate,
+        dashboard_rank_result, trend_data, price_result, brand_result, signals,
+        weather_data, keyword_data, forecasts, steady,
+        cm29_rank_result["items"],
+        overall_rank_result["items"],
+        brand_ranks, musinsa_evs, cm29_evs, mat_color, cat_growth,
+        md_action_items, cross_platform, reviewed_entries,
+        {
+            "failed": list(_fail_log),
+            "counts": {
+                "musinsa": len(dashboard_rankings),
+                "cm29": len(cm29_data),
+                "trends": len(trend_data),
+                "events": len(musinsa_evs) + len(cm29_evs),
+            },
+        },
+        backtests,
+        snapshot_store.available_dates("musinsa_rankings"),
+        backtest_stats,
+    )
+
+    _run("시그널 스냅샷 저장", snapshot_store.save, "signals", signals)
+    _run("날씨 스냅샷 저장", snapshot_store.save, "weather", [weather_data] if weather_data else [])
+
+    # ── 5. 외부 저장 ──────────────────────────────────────────────────────────
     if not dry_run:
         # 노션 저장
         _run("노션 랭킹 저장",       notion_exporter.save_rankings,      rank_result.get("items", today_rankings))
@@ -223,29 +401,17 @@ def run(dry_run: bool = False) -> None:
         _run("노션 브랜드 저장",     notion_exporter.save_brand_tracking, brand_result)
         _run("노션 시그널 저장",     notion_exporter.save_signals,       signals)
 
-        # 기획전 시그널 즉시 알림 (슬랙 우선, 카카오 보조)
+        # 기획전 시그널 즉시 알림 (점수 50점 이상=🟡주의/🔴긴급만 단독 발송, 슬랙 우선/카카오 보조)
+        # 🟢참고 레벨은 일일 요약의 시그널 섹션에서만 확인 — 중복 알림 방지
         from exporters import slack_notify, kakao_notify
-        for sig in signals:
+        urgent_signals = [s for s in signals if s.get("score", 0) >= 50]
+        for sig in urgent_signals:
             if getattr(config, "SLACK_WEBHOOK_URL", ""):
                 _run("슬랙 시그널 즉시 알림", slack_notify.send_signal_alert, sig)
             else:
                 _run("카카오 시그널 즉시 알림", kakao_notify.send_signal_alert, sig)
     else:
         logger.info("[DRY RUN] 저장 단계 스킵")
-
-    # ── 5. 대시보드 생성 (dry-run 포함 항상 생성) ────────────────────────────
-    # 대시보드는 3개 기간 전체 데이터 사용
-    from analyzers import rank_diff as _rd
-    dashboard_rank_result = _rd.analyze(dashboard_rankings, yesterday_rankings) if dashboard_rankings != today_rankings else rank_result
-
-    from exporters import dashboard
-    dash_path = _run(
-        "HTML 대시보드 생성",
-        dashboard.generate,
-        dashboard_rank_result, trend_data, price_result, brand_result, signals,
-        weather_data, keyword_data, forecasts, steady, cm29_data, all_overall,
-        brand_ranks, musinsa_evs, cm29_evs, mat_color, cat_growth,
-    )
 
     # ── 6. 일일 요약 발송 (슬랙 우선, 카카오 보조) ───────────────────────────
     if not dry_run:

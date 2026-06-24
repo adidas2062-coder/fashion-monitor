@@ -7,6 +7,45 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 
+def analyze_items_history(items_history: List[List[Dict]]) -> List[Dict]:
+    """최근 날짜별 전체 스냅샷으로 카테고리 성장률을 계산한다."""
+    if len(items_history) < 2:
+        return []
+    midpoint = max(1, len(items_history) // 2)
+
+    def _averages(days: List[List[Dict]]) -> Dict[str, float]:
+        ranks = defaultdict(list)
+        for items in days:
+            for item in items:
+                if item.get("period", "1일") != "1일":
+                    continue
+                category = item.get("category", "").split("_")[0]
+                rank = item.get("rank")
+                if category and rank:
+                    ranks[category].append(rank)
+        return {
+            category: sum(values) / len(values)
+            for category, values in ranks.items() if values
+        }
+
+    previous = _averages(items_history[:midpoint])
+    current = _averages(items_history[midpoint:])
+    results = []
+    for category, current_rank in current.items():
+        previous_rank = previous.get(category)
+        change = round(previous_rank - current_rank, 1) if previous_rank else 0
+        growth = round(change / previous_rank * 100, 1) if previous_rank else 0
+        results.append({
+            "category": category,
+            "this_avg": round(current_rank, 1),
+            "prev_avg": round(previous_rank, 1) if previous_rank else None,
+            "rank_change": change,
+            "growth_pct": growth,
+            "trend": "📈 상승" if change > 2 else ("📉 하락" if change < -2 else "➡️ 유지"),
+        })
+    return sorted(results, key=lambda row: row["growth_pct"], reverse=True)
+
+
 def analyze(client, ranking_db_id: str, weeks: int = 2) -> List[Dict]:
     """
     최근 N주 랭킹 데이터로 카테고리별 평균 순위 변화 계산.

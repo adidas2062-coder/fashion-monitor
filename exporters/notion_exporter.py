@@ -293,28 +293,74 @@ def save_cm29_rankings(items: List[Dict]) -> None:
         _csv_backup(f"backup_29cm_{date.today()}.csv", items)
 
 
-def fetch_yesterday_rankings() -> List[Dict]:
+def _fetch_latest_rankings_before(
+    db_env_name: str,
+    reference_date: Optional[date] = None,
+    default_period: str = "1일",
+) -> List[Dict]:
     """
-    노션 DB에서 어제 날짜 무신사 랭킹 데이터를 조회해 반환.
+    노션 DB에서 기준일 이전의 가장 최근 무신사 랭킹을 조회해 반환.
+
+    주말, 공휴일, 수집 실패일처럼 날짜가 비어 있으면 마지막 수집일까지
+    자동으로 건너뛴다.
     API 키 미설정 또는 실패 시 빈 리스트.
     """
     client = _client()
-    db_id  = _check_db("NOTION_RANKING_DB_ID")
+    db_id  = _check_db(db_env_name)
     if not client or not db_id:
         return []
 
-    from datetime import date, timedelta
-    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    before = (reference_date or date.today()).isoformat()
 
     try:
-        response = client.databases.query(
+        latest_response = client.databases.query(
             database_id=db_id,
             filter={
                 "property": "날짜",
-                "date": {"equals": yesterday},
+                "date": {"before": before},
             },
+            sorts=[{"property": "날짜", "direction": "descending"}],
+            page_size=1,
         )
-        results = response.get("results", [])
+        latest_results = latest_response.get("results", [])
+        if not latest_results:
+            logger.info("직전 수집 랭킹 없음 (%s 이전)", before)
+            return []
+
+        latest_props = latest_results[0].get("properties", {})
+        latest_date = (
+            latest_props.get("날짜", {}).get("date") or {}
+        ).get("start", "")
+        if not latest_date:
+            logger.warning("직전 수집 랭킹의 날짜를 확인할 수 없음")
+            return []
+        latest_day = date.fromisoformat(latest_date[:10])
+        if latest_day.weekday() >= 5:
+            logger.info("주말 수집 데이터 제외: %s", latest_date)
+            return _fetch_latest_rankings_before(
+                db_env_name, latest_day, default_period
+            )
+
+        results = []
+        start_cursor = None
+        while True:
+            query_args = {
+                "database_id": db_id,
+                "filter": {
+                    "property": "날짜",
+                    "date": {"equals": latest_date},
+                },
+                "page_size": 100,
+            }
+            if start_cursor:
+                query_args["start_cursor"] = start_cursor
+            response = client.databases.query(**query_args)
+            results.extend(response.get("results", []))
+            if not response.get("has_more"):
+                break
+            start_cursor = response.get("next_cursor")
+            if not start_cursor:
+                break
         items: List[Dict] = []
         for page in results:
             props = page.get("properties", {})
@@ -332,8 +378,9 @@ def fetch_yesterday_rankings() -> List[Dict]:
 
             items.append({
                 "product_name":  get_title(props.get("상품명", {})),
-                "collected_at":  yesterday,
+                "collected_at":  latest_date,
                 "category":      get_select(props.get("카테고리", {})),
+                "period":        get_select(props.get("기간", {})) or default_period,
                 "rank":          get_number(props.get("순위", {})),
                 "rank_change":   get_number(props.get("순위변동", {})),
                 "brand":         get_text(props.get("브랜드", {})),
@@ -341,8 +388,39 @@ def fetch_yesterday_rankings() -> List[Dict]:
                 "discount_rate": get_number(props.get("할인율", {})) or 0,
                 "url":           get_url(props.get("URL", {})),
             })
-        logger.info("어제 랭킹 조회 완료: %d건 (%s)", len(items), yesterday)
+        deduped = {}
+        for item in items:
+            product_key = item.get("url") or item.get("product_name", "")
+            key = (
+                item.get("period", "1일"),
+                item.get("category", ""),
+                product_key,
+            )
+            existing = deduped.get(key)
+            if not existing or item.get("rank", 999) < existing.get("rank", 999):
+                deduped[key] = item
+        items = list(deduped.values())
+        logger.info("직전 수집 랭킹 조회 완료: %d건 (%s)", len(items), latest_date)
         return items
     except Exception as exc:
-        logger.error("어제 랭킹 조회 실패: %s", exc)
+        logger.error("직전 수집 랭킹 조회 실패: %s", exc)
         return []
+
+
+def fetch_latest_rankings_before(reference_date: Optional[date] = None) -> List[Dict]:
+    """기준일 이전의 최근 평일 무신사 랭킹을 반환한다."""
+    return _fetch_latest_rankings_before(
+        "NOTION_RANKING_DB_ID", reference_date, "1일"
+    )
+
+
+def fetch_latest_cm29_before(reference_date: Optional[date] = None) -> List[Dict]:
+    """기준일 이전의 최근 평일 29CM 랭킹을 반환한다."""
+    return _fetch_latest_rankings_before(
+        "CM29_RANKING_DB_ID", reference_date, "실시간"
+    )
+
+
+def fetch_yesterday_rankings() -> List[Dict]:
+    """이전 호출부 호환용. 실제로는 직전 수집일 랭킹을 반환한다."""
+    return fetch_latest_rankings_before()

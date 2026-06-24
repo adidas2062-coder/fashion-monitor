@@ -11,6 +11,12 @@ MUSINSA_PARTNERS_PASSWORD = ""
 EDINBURGH_PARTNERS_ID = ""       # 에든버러클럽
 EDINBURGH_PARTNERS_PASSWORD = ""
 
+# ── 무신사 2FA TOTP 시크릿 (설정 시 Chrome Authenticator 없이 자동 처리됨) ────
+# 무신사 파트너스 2FA 재설정 → QR 코드 아래 "키를 직접 입력" 텍스트를 여기에 붙여넣기
+# 예: MUSINSA_TOTP_SECRET = "JBSWY3DPEHPK3PXP"
+MUSINSA_TOTP_SECRET = ""    # juwon5165 계정 TOTP 시크릿
+EDINBURGH_TOTP_SECRET = ""  # juwon0300 계정 TOTP 시크릿
+
 # ── 네이버 데이터랩 API ──────────────────────────────────────────────────────
 # https://developers.naver.com/apps/ 에서 앱 등록 후 발급
 NAVER_CLIENT_ID = ""

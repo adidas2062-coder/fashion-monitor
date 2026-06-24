@@ -5,6 +5,7 @@ HTML 대시보드 생성기.
 data/dashboard.html 에 매일 덮어쓰기 저장.
 """
 
+import html
 import json
 import logging
 import os
@@ -17,6 +18,31 @@ logger = logging.getLogger(__name__)
 
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────────
+
+def _json_for_script(data) -> str:
+    """<script> 태그 안에 안전하게 삽입할 JSON 문자열을 만든다.
+
+    상품명 등 스크래핑 데이터에 "</script>" 문자열이 포함되면 JSON 자체는
+    유효해도 그대로 <script>...</script> 안에 넣을 경우 HTML 파서가 그 지점에서
+    스크립트를 끝내버려 마크업 인젝션이 가능해진다. "</"를 "<\\/"로 치환해
+    JS 문자열/값으로는 동일하게 해석되면서 HTML 파서에는 안전하게 만든다.
+    """
+    return json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+
+
+def _esc(value) -> str:
+    """무신사/29CM 스크래핑 데이터 등 외부 유래 문자열을 HTML에 안전하게 삽입한다.
+
+    이 대시보드는 매일 GitHub Pages로 공개 게시되므로(run_fashion_monitor.sh),
+    상품명·키워드·브랜드·리뷰 텍스트 등 스크래핑 파생 문자열에 <script> 같은
+    마크업이 섞여 있으면 저장형 XSS가 된다. 상품명/키워드/브랜드/테마/체크리스트/
+    근거 설명 등 외부에서 들어온 모든 텍스트는 반드시 이 함수를 거쳐 렌더링한다.
+    숫자·None은 문자열로 변환 후 그대로(이스케이프 불필요) 반환한다.
+    """
+    if value is None:
+        return ""
+    return html.escape(str(value), quote=True)
+
 
 def _rank_badge(change) -> str:
     if change is None:
@@ -55,18 +81,66 @@ def _signal_cards(signals: List[Dict]) -> str:
             open_label = f"{(_today + _td(days=days)).strftime('%m/%d')}까지 오픈 권장"
 
         issues = s.get("issues", [])
-        issue_html = "".join(f'<span class="issue-tag">{i}</span>' for i in issues)
+        issue_html = "".join(f'<span class="issue-tag">{_esc(i)}</span>' for i in issues)
         level_cls = "lvl-red" if "🔴" in level else ("lvl-yellow" if "🟡" in level else "lvl-green")
         score_disp = str(score) if score else "?"
+
+        # 신규 필드 — 없으면(.get 기본값) 조용히 생략, 렌더 깨지지 않음.
+        # score_range가 신규 필드명, confidence_band는 하위호환용 별칭(동일 값) —
+        # score_range를 우선 사용하고 없으면 confidence_band로 폴백한다.
+        band = s.get("score_range") or s.get("confidence_band") or {}
+        band_html = (
+            f'<p class="signal-meta">점수 범위(휴리스틱) {band["low"]}~{band["high"]}점'
+            ' <span class="muted">— 보강 지표 개수 기반, 통계적 신뢰구간 아님</span></p>'
+            if band.get("low") is not None and band.get("high") is not None else ""
+        )
+
+        # score_breakdown(지표별 가감점)을 카드에 직접 노출한다 — MD 액션 카드와
+        # 방법론 설명이 "score_breakdown을 대시보드에서 확인하라"고 안내하므로,
+        # 실제로 렌더링되지 않으면 안내와 화면이 불일치하게 된다.
+        breakdown = s.get("score_breakdown") or {}
+        _breakdown_labels = {
+            "trend": "트렌드", "rank": "랭킹", "discount_surge": "할인급등",
+            "soldout": "품절", "cross_category": "교차카테고리", "yoy": "YoY",
+            "discount_streak": "할인지속성", "seasonal_adjustment": "계절보정",
+            "backtest_feedback": "백테스트피드백", "price_competitiveness": "가격경쟁력",
+        }
+        breakdown_html = (
+            '<details class="score-breakdown"><summary>점수 산출 근거 (score_breakdown)</summary>'
+            '<ul>' + "".join(
+                f"<li>{_esc(_breakdown_labels.get(k, k))}: {v:+.0f}점</li>"
+                if k in ("seasonal_adjustment", "backtest_feedback") else
+                f"<li>{_esc(_breakdown_labels.get(k, k))}: {v:.0f}점</li>"
+                for k, v in breakdown.items()
+            ) + '</ul></details>'
+        ) if breakdown else ""
+
+        evidence_detail = s.get("evidence_detail") or []
+        evidence_html = (
+            '<ul class="evidence-list">' +
+            "".join(f"<li>{_esc(e)}</li>" for e in evidence_detail[:4]) +
+            "</ul>"
+        ) if evidence_detail else ""
+        next_checks = s.get("next_checks") or []
+        checks_html = (
+            '<details class="next-checks"><summary>다음 확인 사항</summary><ul>' +
+            "".join(f"<li>{_esc(c)}</li>" for c in next_checks) +
+            "</ul></details>"
+        ) if next_checks else ""
+
         parts.append(f"""
         <div class="signal-card {level_cls}">
           <div class="signal-score">{score_disp}</div>
-          <h3>{level} {s.get('keyword','')}</h3>
+          <h3>{level} {_esc(s.get('keyword',''))}</h3>
           <p class="signal-meta">트렌드 +{trend_pct:.0f}% | 랭킹 {rank_txt}</p>
-          <p class="signal-theme">→ {s.get('theme','')}</p>
+          <p class="signal-theme">→ {_esc(s.get('theme',''))}</p>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">{issue_html}</div>
-          <div class="open-date">📅 권장 오픈일: <strong>{open_label or '계산 중'}</strong></div>
-          <p class="signal-meta" style="margin-top:6px">{s.get('brand','')} / {s.get('category','')}</p>
+          <div class="open-date">📅 권장 오픈일: <strong>{_esc(open_label) or '계산 중'}</strong></div>
+          <p class="signal-meta" style="margin-top:6px">{_esc(s.get('brand',''))} / {_esc(s.get('category',''))}</p>
+          {band_html}
+          {breakdown_html}
+          {evidence_html}
+          {checks_html}
         </div>""")
     return "\n".join(parts)
 
@@ -77,18 +151,30 @@ def _md_action_cards(actions: List[Dict]) -> str:
     parts = []
     for index, action in enumerate(actions, 1):
         evidence = "".join(
-            f'<span class="action-evidence">{item}</span>'
+            f'<span class="action-evidence">{_esc(item)}</span>'
             for item in action.get("evidence", [])
         )
+        checklist_html = "".join(
+            f"<li>{_esc(item)}</li>" for item in action.get("checklist", [])
+        )
+        where_html = "".join(
+            f"<li>{_esc(item)}</li>" for item in action.get("where_to_look", [])
+        )
+        decision_criteria = _esc(action.get("decision_criteria", ""))
+        priority_reason = _esc(action.get("priority_reason", ""))
         parts.append(f"""
         <article class="action-card">
           <div class="action-rank">{index}</div>
-          <div class="action-source">{action.get('source','시장 신호')}</div>
-          <h3>{action.get('title','')}</h3>
+          <div class="action-source">{_esc(action.get('source','시장 신호'))}</div>
+          <h3>{_esc(action.get('title',''))}</h3>
           <div class="action-evidence-row">{evidence}</div>
-          <p><b>권장 행동</b> {action.get('action','')}</p>
+          <p><b>권장 행동</b> {_esc(action.get('action',''))}</p>
+          {f'<details class="action-detail"><summary>체크리스트</summary><ul>{checklist_html}</ul></details>' if checklist_html else ''}
+          {f'<details class="action-detail"><summary>확인할 곳</summary><ul>{where_html}</ul></details>' if where_html else ''}
+          {f'<p class="action-criteria"><b>판단 기준</b> {decision_criteria}</p>' if decision_criteria else ''}
+          {f'<p class="action-priority-reason muted">{priority_reason}</p>' if priority_reason else ''}
           <div class="action-footer">
-            <span>기한 {action.get('deadline','')}</span>
+            <span>기한 {_esc(action.get('deadline',''))}</span>
             <strong>우선순위 {action.get('confidence',0)}점</strong>
           </div>
         </article>""")
@@ -103,7 +189,7 @@ def _cross_platform_block(rows: List[Dict]) -> str:
         change = row.get("rank_change")
         change_text = f"▲{change}" if change and change > 0 else "-"
         trs.append(
-            f'<tr><td><b>{row.get("brand","")}</b></td>'
+            f'<tr><td><b>{_esc(row.get("brand",""))}</b></td>'
             f'<td>{row.get("musinsa_count",0)}개 / 최고 {row.get("musinsa_best_rank","-")}위</td>'
             f'<td>{row.get("cm29_count",0)}개 / 최고 {row.get("cm29_best_rank","-")}위</td>'
             f'<td style="color:#2f9e44;font-weight:700">{change_text}</td>'
@@ -122,11 +208,11 @@ def _review_insight_block(items: List[Dict]) -> str:
     cards = []
     for item in items[:6]:
         review = item.get("review_analysis", {})
-        negative = ", ".join(review.get("top_negative", [])[:3]) or "특이사항 없음"
+        negative = _esc(", ".join(review.get("top_negative", [])[:3]) or "특이사항 없음")
         cards.append(
-            f'<div class="review-card"><h3>{item.get("product_name","")}</h3>'
-            f'<p>{item.get("brand","")} · 감성 {review.get("sentiment_score","-")}점</p>'
-            f'<p><b>{review.get("summary","")}</b></p>'
+            f'<div class="review-card"><h3>{_esc(item.get("product_name",""))}</h3>'
+            f'<p>{_esc(item.get("brand",""))} · 감성 {review.get("sentiment_score","-")}점</p>'
+            f'<p><b>{_esc(review.get("summary",""))}</b></p>'
             f'<p class="muted">주의 키워드: {negative}</p></div>'
         )
     return "".join(cards)
@@ -149,7 +235,7 @@ def _data_status_block(status: Dict) -> str:
     </div>"""
 
 
-def _backtest_block(rows: List[Dict]) -> str:
+def _backtest_block(rows: List[Dict], stats: Optional[Dict] = None) -> str:
     if not rows:
         return '<p class="empty">스냅샷이 7일 이상 쌓이면 추천 적중 여부가 표시됩니다.</p>'
     completed = [
@@ -158,11 +244,16 @@ def _backtest_block(rows: List[Dict]) -> str:
     ][:3]
     if completed:
         cases = "".join(
-            f'<article class="case-card"><span>{row.get("status")}</span>'
-            f'<h3>{row.get("theme") or row.get("keyword","")}</h3>'
+            f'<article class="case-card"><span>{_esc(row.get("status"))}</span>'
+            f'<h3>{_esc(row.get("theme") or row.get("keyword",""))}</h3>'
             f'<p>추천점수 {row.get("score",0)}점 · 7일 변화 '
-            f'{row.get("day7_change",0):+.1f}계단</p>'
-            f'<p class="muted">{row.get("reason","")}</p></article>'
+            f'{row.get("day7_change",0):+.1f}계단'
+            + (
+                f' · 시장효과 제거 후 {row["relative_day7_change"]:+.1f}계단'
+                if row.get("relative_day7_change") is not None else ""
+            )
+            + '</p>'
+            f'<p class="muted">{_esc(row.get("reason",""))}</p></article>'
             for row in completed
         )
         case_html = f'<h3 class="sub">대표 검증 사례</h3><div class="case-grid">{cases}</div>'
@@ -179,20 +270,70 @@ def _backtest_block(rows: List[Dict]) -> str:
     for row in rows[:10]:
         day3 = "-" if row.get("day3_change") is None else f'{row["day3_change"]:+.1f}'
         day7 = "-" if row.get("day7_change") is None else f'{row["day7_change"]:+.1f}'
+        rel7 = "-" if row.get("relative_day7_change") is None else f'{row["relative_day7_change"]:+.1f}'
         status = row.get("status", "검증 대기")
         trs.append(
             f'<tr><td>{row.get("signal_date","")}</td>'
-            f'<td><b>{row.get("theme") or row.get("keyword","")}</b></td>'
+            f'<td><b>{_esc(row.get("theme") or row.get("keyword",""))}</b></td>'
             f'<td>{row.get("score",0)}점</td><td>{day3}</td><td>{day7}</td>'
-            f'<td style="color:{colors.get(status,"#555")};font-weight:800">{status}</td>'
-            f'<td class="muted">{row.get("reason","")}</td></tr>'
+            f'<td>{rel7}</td>'
+            f'<td style="color:{colors.get(status,"#555")};font-weight:800">{_esc(status)}</td>'
+            f'<td class="muted">{_esc(row.get("reason",""))}</td></tr>'
         )
     table = (
         '<table><thead><tr><th>추천일</th><th>추천</th><th>추천점수</th>'
-        '<th>3일 순위변화</th><th>7일 순위변화</th><th>결과</th><th>판정 근거</th>'
+        '<th>3일 순위변화</th><th>7일 순위변화</th><th>7일 상대성과(시장효과 차감)</th>'
+        '<th>결과</th><th>판정 근거</th>'
         f'</tr></thead><tbody>{"".join(trs)}</tbody></table>'
     )
-    return case_html + table
+
+    stats_html = ""
+    if stats:
+        overall = stats.get("overall", {})
+        overall_rel = stats.get("overall_relative", {})
+        by_cat = stats.get("by_category", {})
+        by_bucket = stats.get("by_score_bucket", {})
+        if overall.get("hit_rate") is not None:
+            cat_rows = "".join(
+                f'<tr><td>{cat}</td><td>{s.get("hit_rate","-")}%</td>'
+                f'<td>{s.get("count",0)}건</td></tr>'
+                for cat, s in by_cat.items() if s.get("hit_rate") is not None
+            )
+            bucket_rows = "".join(
+                f'<tr><td>{bucket}점</td><td>{s.get("hit_rate","-")}%</td>'
+                f'<td>{s.get("count",0)}건</td></tr>'
+                for bucket, s in by_bucket.items() if s.get("hit_rate") is not None
+            )
+            by_cat_rel = stats.get("by_category_relative", {})
+            by_bucket_rel = stats.get("by_score_bucket_relative", {})
+            cat_rows_rel = "".join(
+                f'<tr><td>{cat}</td><td>{s.get("hit_rate","-")}%</td>'
+                f'<td>{s.get("count",0)}건</td></tr>'
+                for cat, s in by_cat_rel.items() if s.get("hit_rate") is not None
+            )
+            bucket_rows_rel = "".join(
+                f'<tr><td>{bucket}점</td><td>{s.get("hit_rate","-")}%</td>'
+                f'<td>{s.get("count",0)}건</td></tr>'
+                for bucket, s in by_bucket_rel.items() if s.get("hit_rate") is not None
+            )
+            stats_html = f"""
+            <h3 class="sub">적중률 통계</h3>
+            <p class="muted">전체 적중률(절대) {overall.get('hit_rate','-')}% (표본 {overall.get('count',0)}건)
+            · 시장효과 차감 후 상대 적중률 {overall_rel.get('hit_rate','-')}%
+            — 카테고리/점수대별 통계도 절대값만으로는 시즌 동반상승을 자체 성과로
+            오인할 수 있어 상대성과(시장효과 차감) 기준을 함께 표시합니다.</p>
+            <div class="case-grid">
+              <table><thead><tr><th>카테고리(절대)</th><th>적중률</th><th>표본</th></tr></thead>
+              <tbody>{cat_rows or '<tr><td colspan=3 class="muted">집계 대기</td></tr>'}</tbody></table>
+              <table><thead><tr><th>카테고리(상대성과)</th><th>적중률</th><th>표본</th></tr></thead>
+              <tbody>{cat_rows_rel or '<tr><td colspan=3 class="muted">집계 대기</td></tr>'}</tbody></table>
+              <table><thead><tr><th>점수대(절대)</th><th>적중률</th><th>표본</th></tr></thead>
+              <tbody>{bucket_rows or '<tr><td colspan=3 class="muted">집계 대기</td></tr>'}</tbody></table>
+              <table><thead><tr><th>점수대(상대성과)</th><th>적중률</th><th>표본</th></tr></thead>
+              <tbody>{bucket_rows_rel or '<tr><td colspan=3 class="muted">집계 대기</td></tr>'}</tbody></table>
+            </div>"""
+
+    return case_html + stats_html + table
 
 
 def _methodology_block() -> str:
@@ -203,14 +344,52 @@ def _methodology_block() -> str:
       <div><b>추천 방식</b><p>검색 상승, 랭킹 변화, 할인·품절, 플랫폼 교차 반응,
       날씨 적합도를 결합하며 출처가 겹치지 않게 신뢰도 상위 3개를 표시합니다.
       신뢰도는 성공 확률이 아니라 공개 신호의 상대적 우선순위 점수입니다.</p></div>
-      <div><b>기획전 신호 점수</b><p>트렌드 30점 + 랭킹 25점 + 할인 15점 +
-      품절 10점 + 복수 카테고리 10점 + 작년 동기 10점으로 계산합니다.</p></div>
+      <div><b>기획전 신호 점수</b><p>트렌드 30점 + 랭킹 25점 + 할인율 급등(전일 대비
+      +5%p 이상 상승, 상시 할인과 구분) 15점 + 품절 10점 + 복수 카테고리 10점 +
+      작년 동기 10점 + 할인 지속성 보너스(연속 상승일 기준 최대 5점) + 가격대 경쟁력
+      보너스(매칭 상품 가격이 동일 카테고리 평균가 대비 ±30% 이상 벗어났는데도 랭킹이
+      급등한 경우, 저가 회전 수요 또는 고가 프레스티지 수요 신호로 최대 3점)로
+      구성됩니다. 랭킹 데이터에서 매칭되는 상품이 전혀 없는 "트렌드 단독 시그널"은
+      랭킹 25점을 받지 않고 0점 처리되어 신규 진입으로 오판하지 않습니다. 여기에
+      계절 보정과 백테스트 피드백이 가산/감산되어 최종 0~100점으로 캡됩니다.
+      카드별 점수는 score_breakdown(지표별 기여 점수, "점수 산출 근거" 펼침 영역에
+      전체 항목이 노출됩니다)과 score_range(보강 지표 개수에 따른 점수 범위 휴리스틱 —
+      표본/분산/백테스트 데이터를 쓰지 않는 단순 범위이므로 통계적 신뢰구간이 아닙니다)로
+      투명하게 노출되며, evidence_detail에서 "왜 이 점수인지", next_checks에서
+      "무엇을 더 확인해야 하는지"(가격대 적정성 확인 포함)를 함께 안내합니다.</p></div>
+      <div><b>계절 보정 (점진적, 카테고리별)</b><p>기존 단순 -20점 on/off 방식 대신, 최고기온이
+      기준 구간(겨울 키워드 24도, 여름 키워드 14도)을 벗어난 정도, 키워드별 계절 감도,
+      그리고 상품의 카테고리 대분류 배수(아우터 1.2배·상의 1.0배·바지 0.7배)를 모두 곱해
+      -20~+5점 사이의 연속값으로 보정합니다. 동일 키워드라도 매칭된 상품의 카테고리가
+      다르면(예: "니트"가 상의 vs 아우터) 보정값이 달라집니다. 사전에 없는 키워드도
+      폭염/한파 극단 구간에서는 기본 감도로 약하게 보정되어 누락을 방지합니다.
+      계절이 맞아떨어지면 소폭(+5점) 보너스도 있습니다.</p></div>
+      <div><b>백테스트 피드백 가중치</b><p>signal_backtest.keyword_hit_weights()가
+      과거 동일 키워드 패턴의 적중률(완료된 적중/부분적중/실패 표본 기준)을 50%를
+      기준점으로 -10~+10점 가중치로 환산해, 다음 시그널 스코어링에 자동 반영합니다.
+      표본이 2건 미만인 키워드는 과신을 막기 위해 가중치를 적용하지 않습니다.</p></div>
       <div><b>플랫폼 교차 점수</b><p>양 플랫폼 동시 진입 35점 + 노출 상품 수
       최대 40점 + 최근 최고순위 5계단 이상 상승 20점으로 계산합니다.</p></div>
       <div><b>날씨 액션 점수</b><p>현재는 최고기온과 3일 예보에 따른 규칙 기반
       68점으로 표시합니다. 백테스트가 쌓이면 계절별 적중률로 보정할 예정입니다.</p></div>
-      <div><b>백테스트 기준</b><p>추천일 대비 3일·7일 후 관련 상품 평균 순위를 비교해
-      적중, 부분 적중, 보류, 실패로 판정합니다.</p></div>
+      <div><b>백테스트 기준 (절대·상대성과)</b><p>추천일 대비 3일·7일 후 관련 상품 평균
+      순위를 비교해 적중, 부분 적중, 보류, 실패로 판정합니다(status). 정확히 +3일/+7일
+      스냅샷이 없으면(휴일·수집 실패) 그 이후 가장 가까운 실제 수집일(최대 +3일)을
+      자동으로 대신 사용해 불필요한 '보류' 누적을 줄입니다. 추천 상품이 후속일 랭킹에서
+      완전히 이탈(품절·순위 밖 탈락)한 경우 카테고리 평균으로 대체하지 않고 정직하게
+      '보류'로 처리해, 이탈 상품이 카테고리 평균 순위로 둔갑해 허위로 '부분 적중'
+      판정되는 것을 막습니다. 동시에 추천일에 존재하던 "동일 상품 코호트"(시그널 상품
+      자신은 제외)가 같은 기간 평균적으로 몇 계단 이동했는지를 시장효과(시즌효과)
+      베이스라인으로 분리해 차감한 상대성과(relative_day7_change)도 별도 판정
+      (relative_status)하며, 코호트 중 후속일에 랭킹에서 이탈한 상품은 평균 계산에서
+      제외하지 않고 "TOP N 바로 밖(N+1위)으로 밀려났다"는 보수적 순위 하한값으로 포함해
+      생존자 편향(살아남은 상품만으로 시장 성과가 과대평가되는 문제)을 방지합니다. 다음
+      시그널 스코어링에 피드백되는 키워드 가중치(keyword_hit_weights)는 이 상대성과
+      기준으로만 계산해 시즌효과가 다시 점수에 섞여 들어가지 않도록 합니다. 카테고리별·
+      점수대별(30~49/50~79/80+) 적중률 통계는 절대 기준(by_category/by_score_bucket)과
+      상대성과 기준(by_category_relative/by_score_bucket_relative)을 모두 집계해
+      MD 액션 카드의 우선순위 근거(priority_reason)도 절대값만이 아니라 시장효과를
+      차감한 상대성과 값을 함께 병기하도록 합니다.</p></div>
       <div><b>분석 한계</b><p>공개 랭킹은 실제 판매량과 동일하지 않으며 플랫폼 노출 정책,
       광고, 재고 변화의 영향을 받을 수 있습니다. 내부 매출은 사용하지 않습니다.</p></div>
     </div>"""
@@ -249,10 +428,10 @@ def _ranking_table(
         price = f"{item.get('price', 0):,}"
         disc  = item.get("discount_rate", 0)
         disc_str = f'<span class="disc">-{disc}%</span>' if disc else ""
-        url   = item.get("url", "#")
-        name  = item.get("product_name", "")
-        brand = item.get("brand", "")
-        subcat = item.get("category", "").replace(cat_prefix + "_", "")
+        url   = _esc(item.get("url", "#"))
+        name  = _esc(item.get("product_name", ""))
+        brand = _esc(item.get("brand", ""))
+        subcat = _esc(item.get("category", "").replace(cat_prefix + "_", ""))
         trs.append(f"""
         <tr>
           <td>{item['rank']}</td>
@@ -285,10 +464,10 @@ def _new_entry_cards(new_entries: List[Dict], baseline_available: bool = True) -
         reviews = item.get("review_count") or 0
         parts.append(f"""
         <div class="entry-card">
-          <div class="entry-cat">{item.get('category','')}</div>
-          <h4><a href="{item.get('url','#')}" target="_blank">{item.get('product_name','')}</a></h4>
-          <p class="brand">{item.get('brand','')}</p>
-          <p>{price}원 | 핏: {fit}</p>
+          <div class="entry-cat">{_esc(item.get('category',''))}</div>
+          <h4><a href="{_esc(item.get('url','#'))}" target="_blank">{_esc(item.get('product_name',''))}</a></h4>
+          <p class="brand">{_esc(item.get('brand',''))}</p>
+          <p>{price}원 | 핏: {_esc(fit)}</p>
           <p>★ {rating} ({reviews:,}리뷰)</p>
         </div>""")
     return "\n".join(parts)
@@ -309,13 +488,13 @@ def _trend_chart_data(trend_data: List[Dict]) -> str:
     labels = [k for k, _ in sorted_kw]
     scores = [v["score"] for _, v in sorted_kw]
     changes = [v["change_pct"] for _, v in sorted_kw]
-    return json.dumps({"labels": labels, "scores": scores, "changes": changes}, ensure_ascii=False)
+    return _json_for_script({"labels": labels, "scores": scores, "changes": changes})
 
 
 def _price_chart_data(price_result: Dict) -> str:
     cats = list(price_result.get("by_category", {}).keys())
     avgs = [price_result["by_category"][c]["avg"] for c in cats]
-    return json.dumps({"labels": cats, "avgs": avgs}, ensure_ascii=False)
+    return _json_for_script({"labels": cats, "avgs": avgs})
 
 
 def _brand_section(brand_data: List[Dict]) -> str:
@@ -336,7 +515,7 @@ def _brand_section(brand_data: List[Dict]) -> str:
 
             parts.append(f'<div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:10px">')
             parts.append(f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">')
-            parts.append(f'<strong style="font-size:14px">{b["brand"]}</strong>')
+            parts.append(f'<strong style="font-size:14px">{_esc(b["brand"])}</strong>')
             parts.append(f'<span style="color:#888;font-size:12px">랭킹 내 {cnt}개 {change_str}</span>')
             parts.append('</div>')
 
@@ -369,17 +548,17 @@ def _brand_section(brand_data: List[Dict]) -> str:
                     period_color = {"1일":"#1a73e8","주간":"#27ae60","월간":"#e67e22"}.get(period_badge, "#888")
                     parts.append(
                         f'<tr><td>{p.get("rank","-")}위 {badge}</td>'
-                        f'<td><a href="{p.get("url","#")}" target="_blank" style="color:#1a73e8">'
-                        f'{p.get("product_name","")}</a></td>'
-                        f'<td style="color:#888">{p.get("category","").replace("_전체","")}</td>'
-                        f'<td><span style="background:{period_color};color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">{period_badge}</span></td>'
+                        f'<td><a href="{_esc(p.get("url","#"))}" target="_blank" style="color:#1a73e8">'
+                        f'{_esc(p.get("product_name",""))}</a></td>'
+                        f'<td style="color:#888">{_esc(p.get("category","").replace("_전체",""))}</td>'
+                        f'<td><span style="background:{period_color};color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">{_esc(period_badge)}</span></td>'
                         f'<td>{p.get("price",0):,}원</td></tr>'
                     )
                 parts.append('</table>')
             parts.append('</div>')
 
     if out_ranking:
-        out_names = ", ".join(b["brand"] for b in out_ranking)
+        out_names = _esc(", ".join(b["brand"] for b in out_ranking))
         parts.append(f'<p style="color:#aaa;font-size:12px;margin-top:8px">랭킹 외: {out_names}</p>')
 
     if not in_ranking and not out_ranking:
@@ -415,7 +594,7 @@ def _cm29_index(cm29_data: List[Dict]) -> str:
         })
     for key in index:
         index[key].sort(key=lambda x: x.get("rank") or 999)
-    return json.dumps(index, ensure_ascii=False)
+    return _json_for_script(index)
 
 
 # ── 공개 인터페이스 ────────────────────────────────────────────────────────────
@@ -457,7 +636,7 @@ def _keyword_table(keyword_data: List[Dict]) -> str:
         badge = f'<span style="color:{color};font-weight:bold">{fluct}{amt if amt else ""}</span>'
         if "NEW" in fluct:
             badge = '<span style="background:#ede0ff;color:#7d3c98;padding:2px 6px;border-radius:10px;font-size:11px">NEW</span>'
-        return f"<tr><td>{r['rank']}</td><td>{badge}</td><td>{r['keyword']}</td></tr>"
+        return f"<tr><td>{r['rank']}</td><td>{badge}</td><td>{_esc(r['keyword'])}</td></tr>"
 
     initial = rows[:5]
     extra   = rows[5:]
@@ -511,11 +690,11 @@ def _forecast_table(forecasts: List[Dict]) -> str:
         conf_bg = {"높음": "#d4f5e2", "보통": "#fff3cd", "낮음": "#f0f0f0"}.get(
             f.get("confidence","낮음"), "#f0f0f0")
         trs.append(
-            f'<tr><td>{f["keyword"]}</td>'
-            f'<td style="color:{dir_color};font-weight:bold">{f["trend_direction"]}</td>'
+            f'<tr><td>{_esc(f["keyword"])}</td>'
+            f'<td style="color:{dir_color};font-weight:bold">{_esc(f["trend_direction"])}</td>'
             f'<td>{f["forecast_score"]}</td>'
             f'<td style="background:{conf_bg};border-radius:10px;padding:2px 8px;font-size:11px">'
-            f'{f["confidence"]}</td></tr>'
+            f'{_esc(f["confidence"])}</td></tr>'
         )
     return f"""<table>
       <thead><tr><th>키워드</th><th>트렌드</th><th>예측점수</th><th>신뢰도</th></tr></thead>
@@ -531,8 +710,8 @@ def _steady_seller_rows(steady: List[Dict]) -> str:
         badge = "🏆" if s.get("is_steady") else "📈"
         trs.append(
             f'<tr><td>{badge}</td>'
-            f'<td><a href="{s.get("url","#")}" target="_blank">{s.get("product_name","")}</a></td>'
-            f'<td>{s.get("brand","")}</td>'
+            f'<td><a href="{_esc(s.get("url","#"))}" target="_blank">{_esc(s.get("product_name",""))}</a></td>'
+            f'<td>{_esc(s.get("brand",""))}</td>'
             f'<td>{s.get("appearances",0)}회</td>'
             f'<td>{s.get("best_rank","-")}위</td></tr>'
         )
@@ -549,10 +728,10 @@ def _events_block(musinsa_evs: List[Dict], cm29_evs: List[Dict]) -> str:
     parts.append('<div><h3 style="font-size:13px;color:#555;margin-bottom:8px">🛒 무신사 기획전</h3>')
     if musinsa_evs:
         for e in musinsa_evs[:6]:
-            badge = e.get("period") or f'{e["item_count"]}개 상품'
+            badge = _esc(e.get("period") or f'{e["item_count"]}개 상품')
             parts.append(
                 f'<div class="event-item">'
-                f'<span class="event-title">{e["title"]}</span>'
+                f'<span class="event-title">{_esc(e["title"])}</span>'
                 f'<span class="event-badge">{badge}</span>'
                 f'</div>'
             )
@@ -563,10 +742,10 @@ def _events_block(musinsa_evs: List[Dict], cm29_evs: List[Dict]) -> str:
     parts.append('<div style="margin-top:14px"><h3 style="font-size:13px;color:#555;margin-bottom:8px">🛍 29CM 에디션</h3>')
     if cm29_evs:
         for e in cm29_evs[:6]:
-            badge = e.get("period") or f'{e.get("item_count",0)}개 상품'
+            badge = _esc(e.get("period") or f'{e.get("item_count",0)}개 상품')
             parts.append(
                 f'<div class="event-item">'
-                f'<span class="event-title">{e.get("title","")}</span>'
+                f'<span class="event-title">{_esc(e.get("title",""))}</span>'
                 f'<span class="event-badge">{badge}</span>'
                 f'</div>'
             )
@@ -593,11 +772,11 @@ def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
             badge = f'<span style="color:#e74c3c">▼{amt}</span>'
         elif fluct == "NEW":
             badge = '<span style="background:#ede0ff;color:#7d3c98;padding:1px 5px;border-radius:8px;font-size:10px">NEW</span>'
-        label = f'<span style="color:#888;font-size:11px">{b.get("label","")}</span>' if b.get("label") else ""
-        url = b.get("url","#")
+        label = f'<span style="color:#888;font-size:11px">{_esc(b.get("label",""))}</span>' if b.get("label") else ""
+        url = _esc(b.get("url","#"))
         trs.append(
             f'<tr><td>{b["rank"]}</td><td>{badge}</td>'
-            f'<td><a href="{url}" target="_blank">{b["brand"]}</a> {label}</td></tr>'
+            f'<td><a href="{url}" target="_blank">{_esc(b["brand"])}</a> {label}</td></tr>'
         )
     return f'<table><thead><tr><th>#</th><th>변동</th><th>브랜드</th></tr></thead><tbody>{"".join(trs)}</tbody></table>'
 
@@ -611,13 +790,13 @@ def _material_color_block(mat_color: Dict) -> str:
     fits   = mat_color.get("fit_types", [])
     parts  = []
     if mats:
-        tags = "".join(f'<span class="issue-tag" style="margin:2px">{m}({n})</span>' for m,n in mats)
+        tags = "".join(f'<span class="issue-tag" style="margin:2px">{_esc(m)}({n})</span>' for m,n in mats)
         parts.append(f'<p style="margin-bottom:6px"><b>소재:</b> {tags}</p>')
     if fits:
-        tags = "".join(f'<span class="issue-tag" style="margin:2px;background:#e8f5e9;color:#2e7d32;border-color:#4caf50">{f}({n})</span>' for f,n in fits)
+        tags = "".join(f'<span class="issue-tag" style="margin:2px;background:#e8f5e9;color:#2e7d32;border-color:#4caf50">{_esc(f)}({n})</span>' for f,n in fits)
         parts.append(f'<p style="margin-bottom:6px"><b>핏:</b> {tags}</p>')
     if colors:
-        tags = "".join(f'<span class="issue-tag" style="margin:2px;background:#e3f2fd;color:#1565c0;border-color:#42a5f5">{c}({n})</span>' for c,n in colors[:5])
+        tags = "".join(f'<span class="issue-tag" style="margin:2px;background:#e3f2fd;color:#1565c0;border-color:#42a5f5">{_esc(c)}({n})</span>' for c,n in colors[:5])
         parts.append(f'<p><b>색상:</b> {tags}</p>')
     return "\n".join(parts) if parts else '<p class="empty">데이터 없음</p>'
 
@@ -632,8 +811,8 @@ def _cat_growth_block(cat_growth: List[Dict]) -> str:
         change = c.get("rank_change", 0)
         color = "#27ae60" if change > 0 else ("#e74c3c" if change < 0 else "#888")
         trs.append(
-            f'<tr><td>{c["category"]}</td>'
-            f'<td style="color:{color};font-weight:bold">{trend}</td>'
+            f'<tr><td>{_esc(c["category"])}</td>'
+            f'<td style="color:{color};font-weight:bold">{_esc(trend)}</td>'
             f'<td style="color:{color}">{change:+.1f}</td>'
             f'<td style="color:#888;font-size:11px">{c.get("growth_pct",0):+.1f}%</td></tr>'
         )
@@ -663,6 +842,7 @@ def generate(
     data_status: Optional[Dict] = None,
     backtests: Optional[List[Dict]] = None,
     history_dates: Optional[List[str]] = None,
+    backtest_stats: Optional[Dict] = None,
 ) -> str:
     """
     대시보드 HTML 생성 후 파일 저장.
@@ -706,7 +886,7 @@ def generate(
     for key in overall_index:
         overall_index[key].sort(key=lambda x: x.get("rank") or 999)
         overall_index[key] = overall_index[key][:30]
-    overall_json = json.dumps(overall_index, ensure_ascii=False)
+    overall_json = _json_for_script(overall_index)
 
     # 기간 × 카테고리(대분류 + 세분류) 인덱싱 — 남성
     # key 예시: "1일|상의", "주간|상의_반소매티셔츠", "월간|아우터_후드집업"
@@ -752,7 +932,7 @@ def generate(
         ranking_index[key].sort(key=lambda x: x.get("rank") or 999)
         ranking_index[key] = ranking_index[key][:30]
 
-    ranking_json = json.dumps(ranking_index, ensure_ascii=False)
+    ranking_json = _json_for_script(ranking_index)
 
     html = f"""<!DOCTYPE html>
 <html lang="ko">
@@ -1090,7 +1270,7 @@ def generate(
     <summary>🧪 과거 추천 백테스트</summary>
     <div class="detail-body">
     <p class="muted" style="margin-bottom:10px">성과가 좋은 추천만 선별하지 않고 검증 가능한 모든 추천을 같은 기준으로 평가합니다.</p>
-    {_backtest_block(backtests or [])}
+    {_backtest_block(backtests or [], backtest_stats or {})}
     </div>
   </details>
 
@@ -1105,6 +1285,19 @@ def generate(
 </div>
 
 <script>
+// 무신사/29CM 스크래핑 데이터(상품명·브랜드 등)를 innerHTML로 렌더링할 때
+// <script> 태그나 마크업이 섞여 있어도 안전하게 텍스트로만 표시되도록 이스케이프한다.
+// (이 대시보드는 GitHub Pages로 매일 공개 게시되므로 저장형 XSS 방지가 필요하다.)
+function escapeHtml(value) {{
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}}
+
 // 랭킹 데이터
 const rankingData  = {ranking_json};   // 남성(gf=M)
 const overallData  = {overall_json};   // 전체(gf=A)
@@ -1153,8 +1346,8 @@ function renderRankingTable() {{
     const subcat = (r.category || '').replace(currentMainCat + '_', '');
     const review = r.review_count ? Number(r.review_count).toLocaleString() + '개' : '-';
     html += '<tr><td>' + r.rank + '</td><td>' + badge + '</td>';
-    html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '') + '</a></td>';
-    html += '<td>' + (r.brand || '') + '</td>';
+    html += '<td><a href="' + escapeHtml(r.url) + '" target="_blank">' + escapeHtml(r.product_name) + '</a></td>';
+    html += '<td>' + escapeHtml(r.brand) + '</td>';
     html += '<td>' + Number(r.price).toLocaleString() + '원 ' + disc + '</td>';
     html += '<td style="color:#888;font-size:11px">' + review + '</td>';
     html += '<td style="color:#888;font-size:11px">' + subcat + '</td></tr>';
@@ -1248,8 +1441,8 @@ function renderCm29Table() {{
     const review = r.review_count ? Number(r.review_count).toLocaleString() + '개' : '-';
     const sold   = r.is_sold_out ? ' <span style="color:#e74c3c;font-size:10px">품절</span>' : '';
     html += '<tr><td>' + r.rank + '</td><td>' + badge + '</td>';
-    html += '<td><a href="' + r.url + '" target="_blank">' + (r.product_name || '') + '</a>' + sold + '</td>';
-    html += '<td>' + (r.brand || '') + '</td>';
+    html += '<td><a href="' + escapeHtml(r.url) + '" target="_blank">' + escapeHtml(r.product_name) + '</a>' + sold + '</td>';
+    html += '<td>' + escapeHtml(r.brand) + '</td>';
     html += '<td>' + Number(r.price).toLocaleString() + '원 ' + disc + '</td>';
     html += '<td style="color:#888;font-size:11px">' + review + '</td>';
     html += '<td style="color:#888;font-size:11px">' + score + '</td></tr>';

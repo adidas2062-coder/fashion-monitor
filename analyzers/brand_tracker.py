@@ -125,3 +125,27 @@ def analyze(
     results.sort(key=lambda x: (x["product_count"] == 0, -(x["product_count"] or 0)))
     logger.info("브랜드 트래킹 완료: 총 %d개 브랜드", len(results))
     return results
+
+
+def attach_history(results: List[Dict], daily_history: List[List[Dict]]) -> List[Dict]:
+    """관심 브랜드 결과에 최근 날짜별 랭킹 진입 수와 최고 순위를 붙인다."""
+    for result in results:
+        target = result.get("brand", "").upper()
+        history = []
+        for items in daily_history:
+            matched = [
+                item for item in items
+                if item.get("brand", "").upper() == target
+                and item.get("period", "1일") == "1일"
+            ]
+            dates = [item.get("collected_at", "") for item in matched]
+            history.append({
+                "date": dates[0] if dates else "",
+                "count": len({item.get("url") or item.get("product_name") for item in matched}),
+                "best_rank": min(
+                    (item.get("rank") or 999 for item in matched),
+                    default=None,
+                ),
+            })
+        result["history_7d"] = history
+    return results

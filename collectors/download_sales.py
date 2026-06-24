@@ -13,6 +13,7 @@
 """
 
 import logging
+import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -20,7 +21,11 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright, BrowserContext, Page, Frame
 
 import config
-from collectors.musinsa_partners import _get_totp_from_chrome
+from collectors.musinsa_partners import (
+    _get_totp_from_chrome,
+    _get_totp_from_pyotp,
+    _secret_for_keyword,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,12 +80,21 @@ def _sso_login(page: Page, user_id: str, password: str, totp_keyword: str):
     time.sleep(5)
 
     if page.locator('input[name="code"]').count() > 0:
-        code = _get_totp_from_chrome(keyword=totp_keyword)
+        # TOTP 시크릿이 config에 있으면 pyotp 우선 사용, 없으면 Chrome Authenticator에서 읽기
+        totp_secret = _secret_for_keyword(totp_keyword)
+        if totp_secret:
+            code = _get_totp_from_pyotp(totp_secret)
+        else:
+            code = _get_totp_from_chrome(keyword=totp_keyword)
         if code:
             page.locator('input[name="code"]').fill(code)
             page.locator('button[type="submit"]').click()
             page.wait_for_load_state("networkidle")
             time.sleep(5)
+            if page.locator('input[name="code"]').count() > 0:
+                raise RuntimeError("[2FA] 코드 거부됨")
+        else:
+            raise RuntimeError(f"[2FA] TOTP 코드 획득 실패 ({totp_keyword}) — TOTP_SECRET을 config.py에 추가하거나 Chrome Authenticator를 확인하세요")
     logger.info("[로그인] 완료 (%s)", user_id)
 
 
@@ -252,10 +266,13 @@ def _download_29cm_sales(page: Page, save_path: Path):
 def run():
     today_str = datetime.now().strftime("%Y%m%d")
 
+    SESSION_DIR = Path.home() / ".config" / "musinsa-playwright" / "download"
+    SESSION_DIR.mkdir(parents=True, exist_ok=True)
+
     pw = sync_playwright().start()
     ctx = pw.chromium.launch_persistent_context(
-        user_data_dir="/tmp/musinsa_download",
-        headless=False,
+        user_data_dir=str(SESSION_DIR),
+        headless=os.environ.get("SALES_HEADLESS", "0") == "1",
         viewport={"width": 1280, "height": 900},
         locale="ko-KR",
         accept_downloads=True,
