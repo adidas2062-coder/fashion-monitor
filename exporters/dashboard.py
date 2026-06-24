@@ -1078,19 +1078,19 @@ def generate(
   <nav class="nav-bar">
     <div class="nav-inner">
       <a class="nav-item" href="#md-actions">✅ 오늘의 액션</a>
-      <a class="nav-item" href="#watch-brands">🏷 관심 브랜드</a>
-      <a class="nav-item" href="#cross-platform">↔ 교차 상승</a>
       <a class="nav-item" href="#musinsa-ranking">🏆 무신사 랭킹</a>
       <a class="nav-item" href="#cm29-ranking">🛍 29CM 랭킹</a>
       <a class="nav-item" href="#new-entries">⬆ 신규 진입</a>
       <a class="nav-item" href="#signals">🎯 기획전 시그널</a>
+      <a class="nav-item" href="#watch-brands">🏷 관심 브랜드</a>
+      <a class="nav-item" href="#cross-platform">↔ 교차 상승</a>
       <a class="nav-item" href="#keywords">🔍 검색어</a>
       <a class="nav-item" href="#events">🎪 기획전 현황</a>
       <a class="nav-item" href="#brand-ranking">📊 브랜드 랭킹</a>
       <a class="nav-item" href="#trends">📈 트렌드</a>
+      <a class="nav-item" href="#steady">🏅 스테디셀러</a>
       <a class="nav-item" href="#backtest">🧪 백테스트</a>
       <a class="nav-item" href="#methodology">📖 방법론</a>
-      <a class="nav-item" href="#steady">🏅 스테디셀러</a>
     </div>
   </nav>
 
