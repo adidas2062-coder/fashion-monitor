@@ -819,6 +819,7 @@ def detect(
             "has_rank_match": has_rank_match,
             "product_name":   matched_product or "",
             "brand":          matched_item.get("brand", "") if matched_item else "",
+            "url":            matched_item.get("url", "") if matched_item else "",
             "category":       cat,
             "theme":          _suggest_theme(trend_kw),
             "score":          score,

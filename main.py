@@ -303,21 +303,17 @@ def run(dry_run: bool = False) -> None:
         previous_daily_rankings,
         previous_cm29,
     ) or []
-    md_action_items = _run(
-        "오늘의 MD 액션 생성",
-        md_actions.build,
-        signals,
-        weather_data,
-        cross_platform,
-        reviewed_entries,
-        3,
-        backtest_stats,
-    ) or []
 
     steady = _run(
         "스테디셀러 감지",
         steady_seller.detect_from_items,
         ranking_history_14d,
+    ) or []
+    steady_dropouts = _run(
+        "스테디셀러 이탈 감지",
+        steady_seller.detect_dropouts,
+        steady,
+        today_daily_rankings,
     ) or []
 
     # 트렌드 예측
@@ -325,6 +321,20 @@ def run(dry_run: bool = False) -> None:
         "트렌드 예측",
         trend_forecast.forecast_from_trend_data,
         list(reversed(trend_history_28d)),
+    ) or []
+
+    md_action_items = _run(
+        "오늘의 MD 액션 생성",
+        md_actions.build,
+        signals,
+        weather_data,
+        cross_platform,
+        reviewed_entries,
+        7,
+        backtest_stats,
+        forecasts,
+        steady_dropouts,
+        price_result,
     ) or []
 
     # ── 4. 대시보드 생성 ──────────────────────────────────────────────────────

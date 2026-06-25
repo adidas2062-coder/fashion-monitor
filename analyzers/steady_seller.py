@@ -139,3 +139,22 @@ def detect_from_items(items_history: List[List[Dict]], top_n: int = _TOP_N_THRES
 
     results.sort(key=lambda x: x["appearances"], reverse=True)
     return results
+
+
+def detect_dropouts(
+    steady_sellers: List[Dict], today_items: List[Dict], top_n: int = _TOP_N_THRESHOLD
+) -> List[Dict]:
+    """검증된 스테디셀러(is_steady=True) 중 오늘 TOP N에서 보이지 않는 상품을 찾는다.
+
+    오랫동안 꾸준히 잘 팔리던 상품이 갑자기 랭킹에서 빠지면 품절/이슈일
+    가능성이 높으므로, MD가 그냥 지나치지 않도록 별도로 표시한다.
+    """
+    today_names = {
+        item.get("product_name", "")
+        for item in today_items
+        if (item.get("rank") or 999) <= top_n
+    }
+    return [
+        s for s in steady_sellers
+        if s.get("is_steady") and s.get("product_name") not in today_names
+    ]

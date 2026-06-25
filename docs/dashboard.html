@@ -89,6 +89,9 @@
   .action-card p { font-size:12px;margin-top:10px; }
   .action-evidence-row { display:flex;flex-wrap:wrap;gap:5px; }
   .action-evidence { background:#eef1ff;color:#364fc7;border-radius:12px;padding:2px 7px;font-size:11px; }
+  .action-links-row { display:flex;flex-wrap:wrap;gap:6px;margin-top:8px; }
+  .action-link { display:inline-block;background:#fff;border:1.5px solid var(--accent);color:var(--accent);border-radius:14px;padding:3px 10px;font-size:11px;font-weight:600;text-decoration:none; }
+  .action-link:hover { background:var(--accent);color:#fff;text-decoration:none; }
   .action-footer { display:flex;justify-content:space-between;margin-top:12px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--muted); }
   .action-footer strong { color:var(--accent); }
   .data-status { display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:8px 12px;margin-bottom:14px;border-radius:10px;font-size:11px; }
@@ -172,28 +175,81 @@
     <summary>✅ 오늘의 MD 액션</summary>
     <div class="detail-body">
     <div class="action-grid">
-        <article class="action-card">
+                <article class="action-card">
           <div class="action-rank">1</div>
-          <div class="action-source">플랫폼 교차</div>
-          <h3>펜필드 양 플랫폼 반응 점검</h3>
-          <div class="action-evidence-row"><span class="action-evidence">무신사 2개</span><span class="action-evidence">29CM 4개</span><span class="action-evidence">최고 1위</span></div>
-          <p><b>권장 행동</b> 동시 노출 상품과 가격대를 비교해 우선 노출 후보 선정</p>
-          <details class="action-detail"><summary>체크리스트</summary><ul><li>무신사에서 &#x27;펜필드&#x27; 브랜드관/검색 결과 상위 2개 상품 가격·할인 확인</li><li>29CM에서 동일 브랜드 상위 4개 상품과 무신사 상품 가격대 비교</li><li>두 플랫폼에서 겹치는 상품이 있는지, 있다면 노출 우선순위·프로모션 차이 확인</li></ul></details>
-          <details class="action-detail"><summary>확인할 곳</summary><ul><li>무신사 브랜드 랭킹/검색 페이지</li><li>29CM 브랜드 랭킹/검색 페이지</li><li>대시보드 &#x27;플랫폼 교차&#x27; 섹션 표</li></ul></details>
-          <p class="action-criteria"><b>판단 기준</b> 교차 점수 79점 — 양 플랫폼 동시 상위 노출이면 우선 노출 후보로 즉시 등록, 한쪽 플랫폼에서만 강세면 약세 플랫폼 노출 전략(가격/프로모션) 점검</p>
-          <p class="action-priority-reason muted">양 플랫폼 동시 반응 점수 79점 — 무신사 2개 · 29CM 4개 노출</p>
+          <div class="action-source">트렌드 예측</div>
+          <h3>무신사 다음 주 급등 예상</h3>
+          <div class="action-evidence-row"><span class="action-evidence">예측 점수 180.4</span><span class="action-evidence">성장률 +236%</span><span class="action-evidence">신뢰도 높음</span></div>
+          <p><b>권장 행동</b> 선제적으로 관련 상품 재고·노출을 준비해 트렌드가 시그널화되기 전에 대응</p>
+          
+          <details class="action-detail"><summary>체크리스트</summary><ul><li>무신사/29CM에서 &#x27;무신사&#x27; 관련 상품 현재 재고·노출 현황 확인</li><li>&#x27;무신사&#x27; 검색량이 실제로 최근 며칠 지속 상승 중인지 트렌드 차트로 재확인</li><li>경쟁사가 이미 관련 상품을 선점했는지 카테고리 랭킹에서 확인</li></ul></details>
+          <details class="action-detail"><summary>확인할 곳</summary><ul><li>대시보드 &#x27;무신사 실시간 검색어 &amp; 트렌드 예측&#x27; 섹션</li><li>구글 트렌드/네이버 데이터랩 검색량 추이</li></ul></details>
+          <p class="action-criteria"><b>판단 기준</b> 신뢰도 높음 — 데이터 포인트 11개 기준. &#x27;높음&#x27;이면 1주일 내 상품 준비 시작, &#x27;보통&#x27;이면 2~3일 더 관찰 후 결정, &#x27;낮음&#x27;이면 참고만</p>
+          <p class="action-priority-reason muted">이동평균 기반 예측 점수 180.4, 성장률 +236% — 아직 시그널화 전 선제 포착</p>
           <div class="action-footer">
-            <span>기한 3일 내 검토</span>
-            <strong>우선순위 79점</strong>
+            <span>기한 1주일 내 준비</span>
+            <strong>우선순위 100점</strong>
           </div>
         </article>
 
         <article class="action-card">
           <div class="action-rank">2</div>
+          <div class="action-source">플랫폼 교차</div>
+          <h3>드로우핏 &#x27;상의&#x27; 양 플랫폼 반응 점검</h3>
+          <div class="action-evidence-row"><span class="action-evidence">무신사 상의 8개</span><span class="action-evidence">29CM 상의 2개</span><span class="action-evidence">최고 1위</span></div>
+          <p><b>권장 행동</b> &#x27;상의&#x27; 카테고리에서 동시 노출 상품과 가격대를 비교해 우선 노출 후보 선정</p>
+          <div class="action-links-row"><a class="action-link" href="https://www.musinsa.com/products/6265546" target="_blank">🔗 무신사 드로우핏 상의 최고순위 상품</a><a class="action-link" href="https://product.29cm.co.kr/catalog/3216091" target="_blank">🔗 29CM 드로우핏 상의 최고순위 상품</a></div>
+          <details class="action-detail"><summary>체크리스트</summary><ul><li>무신사에서 &#x27;드로우핏&#x27; 브랜드의 &#x27;상의&#x27; 카테고리 상위 8개 상품 가격·할인 확인</li><li>29CM에서 동일 브랜드 &#x27;상의&#x27; 상위 2개 상품과 무신사 상품 가격대 비교</li><li>두 플랫폼에서 겹치는 상품이 있는지, 있다면 노출 우선순위·프로모션 차이 확인</li></ul></details>
+          <details class="action-detail"><summary>확인할 곳</summary><ul><li>무신사 브랜드 랭킹/검색 페이지 — &#x27;상의&#x27; 카테고리</li><li>29CM 브랜드 랭킹/검색 페이지 — &#x27;상의&#x27; 카테고리</li><li>대시보드 &#x27;플랫폼 교차&#x27; 섹션 표</li></ul></details>
+          <p class="action-criteria"><b>판단 기준</b> 교차 점수 95점 — 같은 &#x27;상의&#x27; 카테고리에서 양 플랫폼 동시 상위 노출이면 우선 노출 후보로 즉시 등록, 한쪽 플랫폼에서만 강세면 약세 플랫폼 노출 전략(가격/프로모션) 점검</p>
+          <p class="action-priority-reason muted">&#x27;상의&#x27; 카테고리 양 플랫폼 동시 반응 점수 95점 — 무신사 8개 · 29CM 2개 노출</p>
+          <div class="action-footer">
+            <span>기한 3일 내 검토</span>
+            <strong>우선순위 95점</strong>
+          </div>
+        </article>
+
+        <article class="action-card">
+          <div class="action-rank">3</div>
+          <div class="action-source">스테디셀러 이탈</div>
+          <h3>[기획] 커브드 밴딩 린넨 팬츠_4color 스테디셀러 이탈 경고</h3>
+          <div class="action-evidence-row"><span class="action-evidence">연속 등장 13회</span><span class="action-evidence">최고 4위</span><span class="action-evidence">트릴리온</span></div>
+          <p><b>권장 행동</b> 품절·재고 여부를 확인하고 필요 시 재노출 또는 재입고 일정 점검</p>
+          <div class="action-links-row"><a class="action-link" href="https://www.musinsa.com/products/6230371" target="_blank">🔗 [기획] 커브드 밴딩 린넨 팬츠_4color 상품 페이지</a></div>
+          <details class="action-detail"><summary>체크리스트</summary><ul><li>무신사에서 &#x27;[기획] 커브드 밴딩 린넨 팬츠_4color&#x27; 상품 페이지 직접 접속 — 품절/판매중지 여부 확인</li><li>품절이면 재입고 일정 확인, 정상 판매 중이면 노출 위치(메인/카테고리 정렬) 변경 여부 확인</li><li>동일 브랜드의 유사 대체 상품이 랭킹에 새로 진입했는지 확인 (포지션 이전 가능성)</li></ul></details>
+          <details class="action-detail"><summary>확인할 곳</summary><ul><li>무신사 상품 상세페이지 — [기획] 커브드 밴딩 린넨 팬츠_4color</li><li>대시보드 &#x27;스테디셀러&#x27; 섹션 — 과거 등장 이력</li></ul></details>
+          <p class="action-criteria"><b>판단 기준</b> 13회 연속 등장하던 상품이 오늘 이탈 — 품절이면 재입고 후 즉시 재노출, 정상 판매 중인데 이탈했다면 노출 로직(정렬/광고) 점검 필요</p>
+          <p class="action-priority-reason muted">13회 연속 TOP10 등장 상품의 갑작스런 이탈 — 검증된 수요 상품이므로 우선 확인 필요</p>
+          <div class="action-footer">
+            <span>기한 오늘</span>
+            <strong>우선순위 86점</strong>
+          </div>
+        </article>
+
+        <article class="action-card">
+          <div class="action-rank">4</div>
+          <div class="action-source">가격대 변동</div>
+          <h3>&#x27;아우터&#x27; 평균가 상승 점검</h3>
+          <div class="action-evidence-row"><span class="action-evidence">평균가 202,104원 (전일비 +33,194원)</span><span class="action-evidence">최빈 가격대 20만원 이상</span><span class="action-evidence">할인율 최고 85% (파렌하이트)</span></div>
+          <p><b>권장 행동</b> 평균가 변동 원인(신상품/할인 종료/구성 변화)을 확인해 가격 전략에 반영</p>
+          
+          <details class="action-detail"><summary>체크리스트</summary><ul><li>&#x27;아우터&#x27; 카테고리 TOP30 상품 구성이 어제와 달라졌는지(신상품 진입/이탈) 확인</li><li>경쟁 브랜드 할인 시작/종료 여부 확인 — 할인 종료면 평균가 자연 상승, 할인 시작이면 하락</li><li>동일 가격 변동이 다른 카테고리에서도 동시에 나타나는지 확인 (시즌 전체 가격 전략 변화 가능성)</li></ul></details>
+          <details class="action-detail"><summary>확인할 곳</summary><ul><li>대시보드 &#x27;트렌드 &amp; 가격 분포&#x27; 섹션</li><li>무신사 &#x27;아우터&#x27; 카테고리 랭킹 — 가격 정렬</li></ul></details>
+          <p class="action-criteria"><b>판단 기준</b> 전일 대비 +33,194원 — 변동폭이 평균가의 10% 이상이면 즉시 원인 파악, 10% 미만이면 단순 변동으로 보고 1~2일 추가 관찰</p>
+          <p class="action-priority-reason muted">&#x27;아우터&#x27; 카테고리 평균가가 전일 대비 +33,194원 상승 — 가격대 변화는 보통 신상품 진입이나 경쟁사 프로모션과 연관</p>
+          <div class="action-footer">
+            <span>기한 2~3일 내 검토</span>
+            <strong>우선순위 83점</strong>
+          </div>
+        </article>
+
+        <article class="action-card">
+          <div class="action-rank">5</div>
           <div class="action-source">날씨 수요</div>
           <h3>24도 날씨 대응 상품 점검</h3>
           <div class="action-evidence-row"><span class="action-evidence">최고 24도 구름 조금</span><span class="action-evidence">상의 긴소매/반소매 혼합 · 아우터 가벼운아우터↑ · 바지 코튼팬츠↑</span><span class="action-evidence">3일 예보 기준</span></div>
           <p><b>권장 행동</b> 날씨 수요 신호와 맞는 상품의 노출·재고·기획전 구성을 우선 확인</p>
+          <div class="action-links-row"><a class="action-link" href="#musinsa-ranking">🔗 대시보드 무신사 랭킹 섹션 바로가기</a></div>
           <details class="action-detail"><summary>체크리스트</summary><ul><li>오늘 최고 24도 기준, 날씨 수요 카테고리(상의 긴소매/반소매 혼합 · 아우터 가벼운아우터↑ · 바지 코튼팬츠↑)의 무신사 메인 노출 상품 확인</li><li>해당 카테고리 재고/품절 현황 확인 — 품절이면 노출 확대 보류</li><li>3일 예보 추이 확인 — 기온 변화 방향이 같은 카테고리에 유지/반대되는지 점검</li></ul></details>
           <details class="action-detail"><summary>확인할 곳</summary><ul><li>대시보드 &#x27;날씨&#x27; 섹션 — 카테고리별 수요 신호</li><li>무신사/29CM 메인 노출 배너 및 카테고리 랭킹</li><li>Open-Meteo 3일 예보(기온 추이)</li></ul></details>
           <p class="action-criteria"><b>판단 기준</b> 예보상 기온 추세가 동일 방향으로 2일 이상 유지되면 노출 확대, 기온이 반대로 꺾일 예정이면 노출 확대를 보류하고 관찰</p>
@@ -204,21 +260,21 @@
           </div>
         </article>
 
-        <article class="action-card">
-          <div class="action-rank">3</div>
+<article class="action-card">
+          <div class="action-rank">6</div>
           <div class="action-source">기획전 시그널</div>
           <h3>후드 &amp; 스웨트 기획전</h3>
-          <div class="action-evidence-row"><span class="action-evidence">트렌드 +39%</span><span class="action-evidence">최고 24도 구름 조금</span><span class="action-evidence">작년 동기 대비 ▲21위 상승</span></div>
+          <div class="action-evidence-row"><span class="action-evidence">트렌드 +39%</span><span class="action-evidence">최고 24도 구름 조금</span><span class="action-evidence">⚠️ 계절 보정 -0.6점</span><span class="action-evidence">작년 동기 대비 ▲21위 상승</span></div>
           <p><b>권장 행동</b> 관련 상품 구성과 경쟁 할인율을 확인해 기획전 오픈 여부 검토</p>
-          <details class="action-detail"><summary>체크리스트</summary><ul><li>무신사/29CM &#x27;아우터&#x27; 카테고리 랭킹 TOP30에서 &#x27;후드집업&#x27; 포함 상품 직접 검색·정렬 확인</li><li>구글 트렌드/네이버 데이터랩에서 해당 키워드 검색량 추세가 일시 스파이크인지 지속 상승인지 7일 그래프로 재확인</li><li>경쟁사(동일 카테고리 상위 브랜드) 할인율·재고 상태 확인</li><li>무신사/29CM 아우터 카테고리 랭킹 페이지에서 경쟁 상품 구성·가격대 재확인</li><li>최근 3~7일 검색량 추세가 일시 스파이크인지 지속 추세인지 트렌드 차트로 재확인</li><li>신규 진입 상품의 리뷰/평점 데이터 축적 여부 확인 (데이터 부족 시 신뢰도 낮음)</li></ul></details>
+          <details class="action-detail"><summary>체크리스트</summary><ul><li>무신사/29CM &#x27;아우터&#x27; 카테고리 랭킹 TOP30에서 &#x27;후드집업&#x27; 포함 상품 직접 검색·정렬 확인</li><li>구글 트렌드/네이버 데이터랩에서 해당 키워드 검색량 추세가 일시 스파이크인지 지속 상승인지 7일 그래프로 재확인</li><li>경쟁사(동일 카테고리 상위 브랜드) 할인율·재고 상태 확인</li><li>⚠️ 현재 최고 24도 기준 계절 보정 -0.6점 — &#x27;후드집업&#x27; 같은 계절성 상품이 지금 날씨와 맞는지, 선행수요(다음 시즌 대비)인지 직접 판단 필요</li><li>무신사/29CM 아우터 카테고리 랭킹 페이지에서 경쟁 상품 구성·가격대 재확인</li><li>최근 3~7일 검색량 추세가 일시 스파이크인지 지속 추세인지 트렌드 차트로 재확인</li><li>신규 진입 상품의 리뷰/평점 데이터 축적 여부 확인 (데이터 부족 시 신뢰도 낮음)</li></ul></details>
           <details class="action-detail"><summary>확인할 곳</summary><ul><li>무신사 랭킹 페이지 — 아우터 카테고리 1일/주간 탭</li><li>대시보드 &#x27;기획전 시그널&#x27; 섹션의 score_breakdown(지표별 기여 점수)</li><li>대시보드 &#x27;백테스트&#x27; 섹션 — 동일 카테고리/점수대 과거 적중 사례</li></ul></details>
           <p class="action-criteria"><b>판단 기준</b> 점수 57점 (범위 47~67, 보강 지표 개수 기반 휴리스틱) — 80점 이상이면 3~5일 내 즉시 기획전 오픈 검토, 50~79점이면 1주일 내 추가 데이터 확인 후 결정, 50점 미만이면 트렌드 단독 신호이므로 1~2일 더 관찰 후 재평가</p>
-          <p class="action-priority-reason muted">신뢰도 점수 57점 / 주요 기여 지표: rank(+25점) / 백테스트 근거: 점수대 50~79점 과거 적중률(절대) 0%, 시장효과 차감 50%(표본 4건)</p>
+          <p class="action-priority-reason muted">신뢰도 점수 57점 / 주요 기여 지표: rank(+25점) / 백테스트 근거: 점수대 50~79점 과거 적중률(절대) 0%, 시장효과 차감 50%(표본 4건) / ⚠️ 계절 역행 가능성(보정 -0.6점) — 날씨 대비 시즌 적합성 재확인 필요</p>
           <div class="action-footer">
             <span>기한 07/09까지 (7~14일 내)</span>
             <strong>우선순위 57점</strong>
           </div>
-        </article></div>
+        </article>
     </div>
   </details>
 
@@ -438,6 +494,7 @@
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px"><span class="issue-tag">작년 동기 대비 ▲21위 상승</span><span class="issue-tag">카테고리 평균가(128,339원) 대비 110% 비쌈 — 고가에도 수요가 몰리는 강한 시그널</span></div>
           <div class="open-date">📅 권장 오픈일: <strong>07/09까지 (7~14일 내)</strong></div>
           <p class="signal-meta" style="margin-top:6px">시에라디자인 / 아우터_플리스뽀글이</p>
+          <p class="signal-meta" style="color:var(--warning);font-weight:600">⚠️ 계절 보정 -0.6점 — 현재 날씨와 카테고리 계절성이 어긋날 수 있음, 직접 확인 권장</p>
           <p class="signal-meta">점수 범위(휴리스틱) 47~67점 <span class="muted">— 보강 지표 개수 기반, 통계적 신뢰구간 아님</span></p>
           <details class="score-breakdown"><summary>점수 산출 근거 (score_breakdown)</summary><ul><li>트렌드: 20점</li><li>랭킹: 25점</li><li>할인급등: 0점</li><li>품절: 0점</li><li>교차카테고리: 0점</li><li>YoY: 10점</li><li>할인지속성: 0점</li><li>계절보정: -1점</li><li>백테스트피드백: +0점</li><li>가격경쟁력: 3점</li></ul></details>
           <ul class="evidence-list"><li>트렌드 검색량 전주 대비 +39% (기여 20점)</li><li>실제 랭킹 신규 진입 상품으로 확인 — 랭킹 항목 만점 (기여 25점)</li><li>작년 동기 대비 순위 우위 확인 (기여 10점)</li><li>카테고리 평균가(128,339원) 대비 110% 비쌈 — 고가에도 수요가 몰리는 강한 시그널 (기여 3점)</li></ul>
@@ -483,7 +540,7 @@
   <details id="cross-platform" class="section" open>
     <summary>↔ 무신사 · 29CM 교차 상승</summary>
     <div class="detail-body">
-    <table><thead><tr><th>브랜드</th><th>무신사</th><th>29CM</th><th>최고순위 변화</th><th>교차점수</th></tr></thead><tbody><tr><td><b>펜필드</b></td><td>2개 / 최고 16위</td><td>4개 / 최고 1위</td><td style="color:#2f9e44;font-weight:700">▲8</td><td>79점</td></tr><tr><td><b>르아르</b></td><td>15개 / 최고 1위</td><td>2개 / 최고 4위</td><td style="color:#2f9e44;font-weight:700">-</td><td>75점</td></tr><tr><td><b>효지</b></td><td>11개 / 최고 1위</td><td>2개 / 최고 2위</td><td style="color:#2f9e44;font-weight:700">-</td><td>75점</td></tr><tr><td><b>폴로 랄프 로렌</b></td><td>16개 / 최고 1위</td><td>1개 / 최고 12위</td><td style="color:#2f9e44;font-weight:700">-</td><td>75점</td></tr><tr><td><b>수아레</b></td><td>10개 / 최고 1위</td><td>6개 / 최고 8위</td><td style="color:#2f9e44;font-weight:700">-</td><td>75점</td></tr><tr><td><b>드로우핏</b></td><td>15개 / 최고 5위</td><td>3개 / 최고 1위</td><td style="color:#2f9e44;font-weight:700">▲3</td><td>75점</td></tr><tr><td><b>아웃스탠딩</b></td><td>13개 / 최고 1위</td><td>6개 / 최고 4위</td><td style="color:#2f9e44;font-weight:700">▲1</td><td>75점</td></tr><tr><td><b>워크온바디오프</b></td><td>7개 / 최고 2위</td><td>6개 / 최고 2위</td><td style="color:#2f9e44;font-weight:700">-</td><td>75점</td></tr></tbody></table>
+    <table><thead><tr><th>브랜드</th><th>카테고리</th><th>무신사</th><th>29CM</th><th>최고순위 변화</th><th>교차점수</th></tr></thead><tbody><tr><td><b>드로우핏</b></td><td style="color:#888;font-size:11px">상의</td><td>8개 / 최고 5위</td><td>2개 / 최고 1위</td><td style="color:#2f9e44;font-weight:700">▲6</td><td>95점</td></tr><tr><td><b>르아르</b></td><td style="color:#888;font-size:11px">상의</td><td>10개 / 최고 1위</td><td>2개 / 최고 4위</td><td style="color:#2f9e44;font-weight:700">-</td><td>75점</td></tr><tr><td><b>아웃스탠딩</b></td><td style="color:#888;font-size:11px">상의</td><td>9개 / 최고 1위</td><td>3개 / 최고 22위</td><td style="color:#2f9e44;font-weight:700">▲1</td><td>75점</td></tr><tr><td><b>워크온바디오프</b></td><td style="color:#888;font-size:11px">상의</td><td>2개 / 최고 2위</td><td>6개 / 최고 2위</td><td style="color:#2f9e44;font-weight:700">-</td><td>67점</td></tr><tr><td><b>러프사이드</b></td><td style="color:#888;font-size:11px">아우터</td><td>1개 / 최고 1위</td><td>1개 / 최고 3위</td><td style="color:#2f9e44;font-weight:700">▲14</td><td>63점</td></tr><tr><td><b>폴로 랄프 로렌</b></td><td style="color:#888;font-size:11px">아우터</td><td>5개 / 최고 1위</td><td>1개 / 최고 12위</td><td style="color:#2f9e44;font-weight:700">▲1</td><td>59점</td></tr><tr><td><b>프리즘웍스</b></td><td style="color:#888;font-size:11px">아우터</td><td>5개 / 최고 1위</td><td>1개 / 최고 4위</td><td style="color:#2f9e44;font-weight:700">-</td><td>59점</td></tr><tr><td><b>노스페이스</b></td><td style="color:#888;font-size:11px">아우터</td><td>4개 / 최고 6위</td><td>2개 / 최고 14위</td><td style="color:#2f9e44;font-weight:700">-</td><td>59점</td></tr></tbody></table>
     </div>
   </details>
 
@@ -556,11 +613,11 @@
     <div class="col-2">
       <div>
         <h3 class="sub">🏆 무신사 브랜드 TOP 15</h3>
-        <table><thead><tr><th>#</th><th>변동</th><th>브랜드</th></tr></thead><tbody><tr><td>1</td><td></td><td><a href="https://www.musinsa.com/brand/musinsastandard" target="_blank">무신사 스탠다드</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr><td>2</td><td></td><td><a href="https://www.musinsa.com/brand/adidas" target="_blank">아디다스</a> </td></tr><tr><td>3</td><td></td><td><a href="https://www.musinsa.com/brand/musinsastandardwoman" target="_blank">무신사 스탠다드 우먼</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr><td>4</td><td><span style="color:#27ae60">▲1</span></td><td><a href="https://www.musinsa.com/brand/thenorthface" target="_blank">노스페이스</a> </td></tr><tr><td>5</td><td><span style="color:#e74c3c">▼1</span></td><td><a href="https://www.musinsa.com/brand/8seconds" target="_blank">에잇세컨즈</a> </td></tr></tbody></table><details><summary>6~15위 더보기</summary><table><tbody><tr><td>6</td><td></td><td><a href="https://www.musinsa.com/brand/nike" target="_blank">나이키</a> </td></tr><tr><td>7</td><td></td><td><a href="https://www.musinsa.com/brand/newbalance" target="_blank">뉴발란스</a> </td></tr><tr><td>8</td><td></td><td><a href="https://www.musinsa.com/brand/dimitriblack" target="_blank">디미트리블랙</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr><td>9</td><td></td><td><a href="https://www.musinsa.com/brand/drawfit" target="_blank">드로우핏</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr><td>10</td><td><span style="color:#27ae60">▲20</span></td><td><a href="https://www.musinsa.com/brand/mlb" target="_blank">엠엘비</a> </td></tr><tr><td>11</td><td></td><td><a href="https://www.musinsa.com/brand/massimodutti2" target="_blank">마시모두띠</a> </td></tr><tr><td>12</td><td><span style="color:#e74c3c">▼2</span></td><td><a href="https://www.musinsa.com/brand/kiimuir" target="_blank">키뮤어</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr><td>13</td><td><span style="color:#27ae60">▲3</span></td><td><a href="https://www.musinsa.com/brand/kodak" target="_blank">코닥</a> </td></tr><tr><td>14</td><td><span style="color:#27ae60">▲20</span></td><td><a href="https://www.musinsa.com/brand/descente" target="_blank">데상트</a> </td></tr><tr><td>15</td><td><span style="color:#e74c3c">▼2</span></td><td><a href="https://www.musinsa.com/brand/lee" target="_blank">리</a> </td></tr></tbody></table></details>
+        <table><thead><tr><th>#</th><th>변동</th><th>브랜드</th></tr></thead><tbody><tr><td>1</td><td></td><td><a href="https://www.musinsa.com/brand/musinsastandard" target="_blank">무신사 스탠다드</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr><td>2</td><td></td><td><a href="https://www.musinsa.com/brand/adidas" target="_blank">아디다스</a> </td></tr><tr><td>3</td><td></td><td><a href="https://www.musinsa.com/brand/musinsastandardwoman" target="_blank">무신사 스탠다드 우먼</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr><td>4</td><td><span style="color:#27ae60">▲1</span></td><td><a href="https://www.musinsa.com/brand/thenorthface" target="_blank">노스페이스</a> </td></tr><tr><td>5</td><td><span style="color:#e74c3c">▼1</span></td><td><a href="https://www.musinsa.com/brand/8seconds" target="_blank">에잇세컨즈</a> </td></tr><tr data-expand-group="brand-rank" style="display:none"><td>6</td><td></td><td><a href="https://www.musinsa.com/brand/nike" target="_blank">나이키</a> </td></tr><tr data-expand-group="brand-rank" style="display:none"><td>7</td><td></td><td><a href="https://www.musinsa.com/brand/newbalance" target="_blank">뉴발란스</a> </td></tr><tr data-expand-group="brand-rank" style="display:none"><td>8</td><td></td><td><a href="https://www.musinsa.com/brand/dimitriblack" target="_blank">디미트리블랙</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr data-expand-group="brand-rank" style="display:none"><td>9</td><td></td><td><a href="https://www.musinsa.com/brand/drawfit" target="_blank">드로우핏</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr data-expand-group="brand-rank" style="display:none"><td>10</td><td><span style="color:#27ae60">▲20</span></td><td><a href="https://www.musinsa.com/brand/mlb" target="_blank">엠엘비</a> </td></tr><tr data-expand-group="brand-rank" style="display:none"><td>11</td><td></td><td><a href="https://www.musinsa.com/brand/massimodutti2" target="_blank">마시모두띠</a> </td></tr><tr data-expand-group="brand-rank" style="display:none"><td>12</td><td><span style="color:#e74c3c">▼2</span></td><td><a href="https://www.musinsa.com/brand/kiimuir" target="_blank">키뮤어</a> <span style="color:#888;font-size:11px">단독</span></td></tr><tr data-expand-group="brand-rank" style="display:none"><td>13</td><td><span style="color:#27ae60">▲3</span></td><td><a href="https://www.musinsa.com/brand/kodak" target="_blank">코닥</a> </td></tr><tr data-expand-group="brand-rank" style="display:none"><td>14</td><td><span style="color:#27ae60">▲20</span></td><td><a href="https://www.musinsa.com/brand/descente" target="_blank">데상트</a> </td></tr><tr data-expand-group="brand-rank" style="display:none"><td>15</td><td><span style="color:#e74c3c">▼2</span></td><td><a href="https://www.musinsa.com/brand/lee" target="_blank">리</a> </td></tr></tbody></table><button class="expand-btn" data-group="brand-rank" data-expanded="0" data-more-text="▼ 15위까지 펼치기" onclick="toggleSimpleExpand(this)">▼ 15위까지 펼치기</button>
       </div>
       <div>
         <h3 class="sub">📈 카테고리 성장률 (주간)</h3>
-        <table><thead><tr><th>카테고리</th><th>트렌드</th><th>순위변화</th><th>성장률</th></tr></thead><tbody><tr><td>상의</td><td style="color:#888;font-weight:bold">➡️ 유지</td><td style="color:#888">+0.0</td><td style="color:#888;font-size:11px">+0.0%</td></tr><tr><td>아우터</td><td style="color:#888;font-weight:bold">➡️ 유지</td><td style="color:#888">+0.0</td><td style="color:#888;font-size:11px">+0.0%</td></tr><tr><td>바지</td><td style="color:#888;font-weight:bold">➡️ 유지</td><td style="color:#888">+0.0</td><td style="color:#888;font-size:11px">+0.0%</td></tr></tbody></table>
+        <table><thead><tr><th>카테고리</th><th>트렌드</th><th>순위변화</th><th>성장률</th></tr></thead><tbody><tr><td><span class="cat-tree-toggle" data-group="cat-growth-상의" data-label="상의" data-expanded="0" onclick="toggleCatTree(this)" style="cursor:pointer;user-select:none">▸ 상의 <span style="color:#888;font-size:10px">(8)</span></span></td><td style="color:#888;font-weight:bold;">➡️ 유지</td><td style="color:#888;">+0.0</td><td style="color:#888;font-size:11px">+0.0%</td></tr><tr data-expand-group="cat-growth-상의" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 반소매티셔츠</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-상의" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 긴소매티셔츠</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-상의" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 맨투맨스웨트</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-상의" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 후드티셔츠</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-상의" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 셔츠블라우스</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-상의" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 니트스웨터</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-상의" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 피케카라티</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-상의" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 민소매티셔츠</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr><td><span class="cat-tree-toggle" data-group="cat-growth-아우터" data-label="아우터" data-expanded="0" onclick="toggleCatTree(this)" style="cursor:pointer;user-select:none">▸ 아우터 <span style="color:#888;font-size:10px">(10)</span></span></td><td style="color:#888;font-weight:bold;">➡️ 유지</td><td style="color:#888;">+0.0</td><td style="color:#888;font-size:11px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 후드집업</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 블루종MA1</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 슈트블레이저</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 나일론코치</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 카디건</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 사파리헌팅</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 트러커재킷</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 환절기코트</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 플리스뽀글이</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-아우터" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 레더라이더스</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr><td><span class="cat-tree-toggle" data-group="cat-growth-바지" data-label="바지" data-expanded="0" onclick="toggleCatTree(this)" style="cursor:pointer;user-select:none">▸ 바지 <span style="color:#888;font-size:10px">(5)</span></span></td><td style="color:#888;font-weight:bold;">➡️ 유지</td><td style="color:#888;">+0.0</td><td style="color:#888;font-size:11px">+0.0%</td></tr><tr data-expand-group="cat-growth-바지" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 데님팬츠</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-바지" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 트레이닝조거</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-바지" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 슈트슬랙스</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-바지" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 숏팬츠</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr><tr data-expand-group="cat-growth-바지" style="display:none"><td style="padding-left:22px;color:#666;font-size:12px">└ 코튼팬츠</td><td style="color:#888;font-weight:bold;font-size:12px;">➡️ 유지</td><td style="color:#888;font-size:12px;">+0.0</td><td style="color:#888;font-size:12px">+0.0%</td></tr></tbody></table>
       </div>
     </div>
     </div>
@@ -695,6 +752,26 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function toggleSimpleExpand(btn) {
+  const group = btn.dataset.group;
+  const expanded = btn.dataset.expanded === '1';
+  document.querySelectorAll('[data-expand-group="' + group + '"]').forEach(row => {
+    row.style.display = expanded ? 'none' : '';
+  });
+  btn.dataset.expanded = expanded ? '0' : '1';
+  btn.textContent = expanded ? btn.dataset.moreText : '▲ 접기';
+}
+
+function toggleCatTree(el) {
+  const group = el.dataset.group;
+  const expanded = el.dataset.expanded === '1';
+  const subRows = document.querySelectorAll('[data-expand-group="' + group + '"]');
+  subRows.forEach(row => { row.style.display = expanded ? 'none' : ''; });
+  el.dataset.expanded = expanded ? '0' : '1';
+  el.innerHTML = (expanded ? '▸ ' : '▾ ') + escapeHtml(el.dataset.label) +
+    ' <span style="color:#888;font-size:10px">(' + subRows.length + ')</span>';
 }
 
 // 랭킹 데이터

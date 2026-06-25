@@ -128,6 +128,17 @@ def _signal_cards(signals: List[Dict]) -> str:
             "</ul></details>"
         ) if next_checks else ""
 
+        # weather_conflict는 -2점 미만의 미세한 계절 역행(예: 24도에서 후드)일 때도
+        # True가 되지만, evidence_detail은 -2점을 넘을 때만 문구를 넣는다. 그 결과
+        # "약하지만 실재하는" 계절 역행이 카드 어디에도 보이지 않는 사각지대가
+        # 생기므로, weather_conflict=True면 항상 배지로 표시한다.
+        seasonal_adj = s.get("seasonal_adjustment", 0) or 0
+        weather_badge = (
+            f'<p class="signal-meta" style="color:var(--warning);font-weight:600">'
+            f'⚠️ 계절 보정 {seasonal_adj:+.1f}점 — 현재 날씨와 카테고리 계절성이 어긋날 수 있음, 직접 확인 권장</p>'
+            if s.get("weather_conflict") else ""
+        )
+
         parts.append(f"""
         <div class="signal-card {level_cls}">
           <div class="signal-score">{score_disp}</div>
@@ -137,6 +148,7 @@ def _signal_cards(signals: List[Dict]) -> str:
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">{issue_html}</div>
           <div class="open-date">📅 권장 오픈일: <strong>{_esc(open_label) or '계산 중'}</strong></div>
           <p class="signal-meta" style="margin-top:6px">{_esc(s.get('brand',''))} / {_esc(s.get('category',''))}</p>
+          {weather_badge}
           {band_html}
           {breakdown_html}
           {evidence_html}
@@ -162,6 +174,10 @@ def _md_action_cards(actions: List[Dict]) -> str:
         )
         decision_criteria = _esc(action.get("decision_criteria", ""))
         priority_reason = _esc(action.get("priority_reason", ""))
+        def _link_html(link: Dict) -> str:
+            target = '' if link["url"].startswith("#") else ' target="_blank"'
+            return f'<a class="action-link" href="{_esc(link["url"])}"{target}>🔗 {_esc(link["label"])}</a>'
+        links_html = "".join(_link_html(link) for link in action.get("links", []) if link.get("url"))
         parts.append(f"""
         <article class="action-card">
           <div class="action-rank">{index}</div>
@@ -169,6 +185,7 @@ def _md_action_cards(actions: List[Dict]) -> str:
           <h3>{_esc(action.get('title',''))}</h3>
           <div class="action-evidence-row">{evidence}</div>
           <p><b>권장 행동</b> {_esc(action.get('action',''))}</p>
+          {f'<div class="action-links-row">{links_html}</div>' if links_html else ''}
           {f'<details class="action-detail"><summary>체크리스트</summary><ul>{checklist_html}</ul></details>' if checklist_html else ''}
           {f'<details class="action-detail"><summary>확인할 곳</summary><ul>{where_html}</ul></details>' if where_html else ''}
           {f'<p class="action-criteria"><b>판단 기준</b> {decision_criteria}</p>' if decision_criteria else ''}
@@ -190,13 +207,14 @@ def _cross_platform_block(rows: List[Dict]) -> str:
         change_text = f"▲{change}" if change and change > 0 else "-"
         trs.append(
             f'<tr><td><b>{_esc(row.get("brand",""))}</b></td>'
+            f'<td style="color:#888;font-size:11px">{_esc(row.get("category",""))}</td>'
             f'<td>{row.get("musinsa_count",0)}개 / 최고 {row.get("musinsa_best_rank","-")}위</td>'
             f'<td>{row.get("cm29_count",0)}개 / 최고 {row.get("cm29_best_rank","-")}위</td>'
             f'<td style="color:#2f9e44;font-weight:700">{change_text}</td>'
             f'<td>{row.get("score",0)}점</td></tr>'
         )
     return (
-        '<table><thead><tr><th>브랜드</th><th>무신사</th><th>29CM</th>'
+        '<table><thead><tr><th>브랜드</th><th>카테고리</th><th>무신사</th><th>29CM</th>'
         '<th>최고순위 변화</th><th>교차점수</th></tr></thead>'
         f'<tbody>{"".join(trs)}</tbody></table>'
     )
@@ -762,7 +780,7 @@ def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
     if not brand_ranks:
         return '<p class="empty">수집 중</p>'
 
-    def _row(b: Dict) -> str:
+    def _row(b: Dict, hidden: bool = False) -> str:
         fluct = b.get("fluctuation_type","NONE")
         amt   = b.get("fluctuation_amt", 0)
         badge = ""
@@ -774,20 +792,25 @@ def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
             badge = '<span style="background:#ede0ff;color:#7d3c98;padding:1px 5px;border-radius:8px;font-size:10px">NEW</span>'
         label = f'<span style="color:#888;font-size:11px">{_esc(b.get("label",""))}</span>' if b.get("label") else ""
         url = _esc(b.get("url","#"))
+        attrs = ' data-expand-group="brand-rank" style="display:none"' if hidden else ""
         return (
-            f'<tr><td>{b["rank"]}</td><td>{badge}</td>'
+            f'<tr{attrs}><td>{b["rank"]}</td><td>{badge}</td>'
             f'<td><a href="{url}" target="_blank">{_esc(b["brand"])}</a> {label}</td></tr>'
         )
 
     top, rest = brand_ranks[:5], brand_ranks[5:15]
     trs_top = "".join(_row(b) for b in top)
-    table = f'<table><thead><tr><th>#</th><th>변동</th><th>브랜드</th></tr></thead><tbody>{trs_top}</tbody></table>'
+    trs_rest = "".join(_row(b, hidden=True) for b in rest)
+    table = (
+        '<table><thead><tr><th>#</th><th>변동</th><th>브랜드</th></tr></thead>'
+        f'<tbody>{trs_top}{trs_rest}</tbody></table>'
+    )
     if rest:
-        trs_rest = "".join(_row(b) for b in rest)
+        last_rank = 5 + len(rest)
         table += (
-            f'<details><summary>6~{5+len(rest)}위 더보기</summary>'
-            f'<table><tbody>{trs_rest}</tbody></table>'
-            '</details>'
+            f'<button class="expand-btn" data-group="brand-rank" data-expanded="0" '
+            f'data-more-text="▼ {last_rank}위까지 펼치기" onclick="toggleSimpleExpand(this)">'
+            f'▼ {last_rank}위까지 펼치기</button>'
         )
     return table
 
@@ -813,21 +836,46 @@ def _material_color_block(mat_color: Dict) -> str:
 
 
 def _cat_growth_block(cat_growth: List[Dict]) -> str:
-    """카테고리 성장률 테이블."""
+    """카테고리 성장률 테이블 — 각 대분류 행 아래로 세분류가 가지치기(트리)되어 펼쳐진다."""
     if not cat_growth:
         return '<p class="empty">데이터 2주 이상 쌓이면 표시됩니다</p>'
-    trs = []
-    for c in cat_growth[:6]:
+
+    def _trend_cells(c: Dict, size: str = "") -> str:
         trend = c.get("trend","")
         change = c.get("rank_change", 0)
         color = "#27ae60" if change > 0 else ("#e74c3c" if change < 0 else "#888")
-        trs.append(
-            f'<tr><td>{_esc(c["category"])}</td>'
-            f'<td style="color:{color};font-weight:bold">{_esc(trend)}</td>'
-            f'<td style="color:{color}">{change:+.1f}</td>'
-            f'<td style="color:#888;font-size:11px">{c.get("growth_pct",0):+.1f}%</td></tr>'
+        sz = f'font-size:{size};' if size else ""
+        return (
+            f'<td style="color:{color};font-weight:bold;{sz}">{_esc(trend)}</td>'
+            f'<td style="color:{color};{sz}">{change:+.1f}</td>'
+            f'<td style="color:#888;font-size:{size or "11px"}">{c.get("growth_pct",0):+.1f}%</td>'
         )
-    return f'<table><thead><tr><th>카테고리</th><th>트렌드</th><th>순위변화</th><th>성장률</th></tr></thead><tbody>{"".join(trs)}</tbody></table>'
+
+    rows = []
+    for c in cat_growth[:6]:
+        subs = c.get("subcategories", [])
+        group = f'cat-growth-{c["category"]}'
+        if subs:
+            label = (
+                f'<span class="cat-tree-toggle" data-group="{_esc(group)}" '
+                f'data-label="{_esc(c["category"])}" data-expanded="0" '
+                f'onclick="toggleCatTree(this)" style="cursor:pointer;user-select:none">'
+                f'▸ {_esc(c["category"])} <span style="color:#888;font-size:10px">({len(subs)})</span></span>'
+            )
+        else:
+            label = _esc(c["category"])
+        rows.append(f'<tr><td>{label}</td>{_trend_cells(c)}</tr>')
+        for s in subs:
+            rows.append(
+                f'<tr data-expand-group="{_esc(group)}" style="display:none">'
+                f'<td style="padding-left:22px;color:#666;font-size:12px">└ {_esc(s["subcategory"])}</td>'
+                f'{_trend_cells(s, size="12px")}</tr>'
+            )
+
+    return (
+        '<table><thead><tr><th>카테고리</th><th>트렌드</th><th>순위변화</th><th>성장률</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
 
 
 def generate(
@@ -1036,6 +1084,9 @@ def generate(
   .action-card p {{ font-size:12px;margin-top:10px; }}
   .action-evidence-row {{ display:flex;flex-wrap:wrap;gap:5px; }}
   .action-evidence {{ background:#eef1ff;color:#364fc7;border-radius:12px;padding:2px 7px;font-size:11px; }}
+  .action-links-row {{ display:flex;flex-wrap:wrap;gap:6px;margin-top:8px; }}
+  .action-link {{ display:inline-block;background:#fff;border:1.5px solid var(--accent);color:var(--accent);border-radius:14px;padding:3px 10px;font-size:11px;font-weight:600;text-decoration:none; }}
+  .action-link:hover {{ background:var(--accent);color:#fff;text-decoration:none; }}
   .action-footer {{ display:flex;justify-content:space-between;margin-top:12px;padding-top:9px;border-top:1px solid var(--border);font-size:11px;color:var(--muted); }}
   .action-footer strong {{ color:var(--accent); }}
   .data-status {{ display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:8px 12px;margin-bottom:14px;border-radius:10px;font-size:11px; }}
@@ -1307,6 +1358,28 @@ function escapeHtml(value) {{
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}}
+
+// 펼치기/접기 버튼 — data-expand-group으로 묶인 행을 토글한다 (브랜드 랭킹 등)
+function toggleSimpleExpand(btn) {{
+  const group = btn.dataset.group;
+  const expanded = btn.dataset.expanded === '1';
+  document.querySelectorAll('[data-expand-group="' + group + '"]').forEach(row => {{
+    row.style.display = expanded ? 'none' : '';
+  }});
+  btn.dataset.expanded = expanded ? '0' : '1';
+  btn.textContent = expanded ? btn.dataset.moreText : '▲ 접기';
+}}
+
+// 카테고리 성장률 트리 토글 — 대분류 행을 누르면 그 아래 세분류만 가지치기로 펼쳐진다
+function toggleCatTree(el) {{
+  const group = el.dataset.group;
+  const expanded = el.dataset.expanded === '1';
+  const subRows = document.querySelectorAll('[data-expand-group="' + group + '"]');
+  subRows.forEach(row => {{ row.style.display = expanded ? 'none' : ''; }});
+  el.dataset.expanded = expanded ? '0' : '1';
+  el.innerHTML = (expanded ? '▸ ' : '▾ ') + escapeHtml(el.dataset.label) +
+    ' <span style="color:#888;font-size:10px">(' + subRows.length + ')</span>';
 }}
 
 // 랭킹 데이터

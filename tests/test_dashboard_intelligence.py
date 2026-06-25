@@ -100,12 +100,21 @@ class DashboardIntelligenceTest(unittest.TestCase):
                 os.chdir(original)
 
     def test_cross_platform_brand_detection(self):
-        musinsa = [{"brand": "브랜드A", "rank": 4, "product_name": "셔츠"}]
-        cm29 = [{"brand": "브랜드A", "rank": 7, "product_name": "팬츠"}]
+        # 같은 대분류 카테고리(상의)에서 동시에 반응해야 교차로 잡힌다 — 카테고리가
+        # 다르면(예: 아우터 vs 바지) 브랜드만 같다는 이유로 잘못 묶이지 않는다.
+        musinsa = [{"brand": "브랜드A", "rank": 4, "product_name": "셔츠", "category": "상의_전체"}]
+        cm29 = [{"brand": "브랜드A", "rank": 7, "product_name": "팬츠", "category": "남성_상의"}]
         result = platform_cross.analyze(musinsa, cm29)
         self.assertEqual("브랜드A", result[0]["brand"])
+        self.assertEqual("상의", result[0]["category"])
         self.assertEqual(1, result[0]["musinsa_count"])
         self.assertEqual(1, result[0]["cm29_count"])
+
+    def test_cross_platform_requires_matching_category(self):
+        musinsa = [{"brand": "브랜드A", "rank": 4, "product_name": "재킷", "category": "아우터_전체"}]
+        cm29 = [{"brand": "브랜드A", "rank": 7, "product_name": "반팔티", "category": "남성_상의"}]
+        result = platform_cross.analyze(musinsa, cm29)
+        self.assertEqual([], result)
 
     def test_md_actions_limit_and_priority(self):
         actions = md_actions.build(
