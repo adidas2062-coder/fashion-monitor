@@ -120,6 +120,17 @@ def run(dry_run: bool = False) -> None:
     ) or []
     time.sleep(config.REQUEST_DELAY)
 
+    # 카테고리(상의/아우터/바지)를 안 가린 진짜 통합 "전체 베스트" 랭킹.
+    # 응답 자체에는 상품별 카테고리가 없어서, all_overall(이미 카테고리가 붙은
+    # 랭킹)과 URL로 대조해 실제 카테고리 비중을 구하는 데 쓴다.
+    overall_best = _run(
+        "무신사 통합 전체 베스트 수집",
+        musinsa.fetch_category,
+        "전체", "000", "DAILY", 100,
+        gf="A",
+    ) or []
+    time.sleep(config.REQUEST_DELAY)
+
     # 대시보드용 — 항상 3개 기간 모두 수집 (표시 전용, 노션 미저장)
     if set(periods) == set(all_periods):
         dashboard_rankings = today_rankings
@@ -270,12 +281,21 @@ def run(dry_run: bool = False) -> None:
         "백테스트 키워드 가중치 산출", signal_backtest.keyword_hit_weights, backtests
     ) or {}
 
+    from analyzers import category_mix
+    category_weights, category_weight_samples = _run(
+        "카테고리 실제 비중 산출 (통합 전체 베스트 기준)",
+        category_mix.compute_category_weight,
+        overall_best, all_overall,
+    ) or ({}, {})
+    logger.info("카테고리 비중 가중치: %s (매칭 표본: %s)", category_weights, category_weight_samples)
+
     signals      = _run(
         "기획전 시그널 감지",
         timing_signal.detect,
         trend_data, rank_result, archive_data, weather_data,
         backtest_keyword_weights,
         ranking_history_14d,
+        category_weights,
     ) or []
 
     # 신규 모듈
