@@ -761,8 +761,8 @@ def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
     """무신사 브랜드 랭킹 테이블."""
     if not brand_ranks:
         return '<p class="empty">수집 중</p>'
-    trs = []
-    for b in brand_ranks[:15]:
+
+    def _row(b: Dict) -> str:
         fluct = b.get("fluctuation_type","NONE")
         amt   = b.get("fluctuation_amt", 0)
         badge = ""
@@ -774,11 +774,24 @@ def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
             badge = '<span style="background:#ede0ff;color:#7d3c98;padding:1px 5px;border-radius:8px;font-size:10px">NEW</span>'
         label = f'<span style="color:#888;font-size:11px">{_esc(b.get("label",""))}</span>' if b.get("label") else ""
         url = _esc(b.get("url","#"))
-        trs.append(
+        return (
             f'<tr><td>{b["rank"]}</td><td>{badge}</td>'
             f'<td><a href="{url}" target="_blank">{_esc(b["brand"])}</a> {label}</td></tr>'
         )
-    return f'<table><thead><tr><th>#</th><th>변동</th><th>브랜드</th></tr></thead><tbody>{"".join(trs)}</tbody></table>'
+
+    top, rest = brand_ranks[:5], brand_ranks[5:15]
+    trs_top = "".join(_row(b) for b in top)
+    table = f'<table><thead><tr><th>#</th><th>변동</th><th>브랜드</th></tr></thead><tbody>{trs_top}</tbody></table>'
+    if rest:
+        trs_rest = "".join(_row(b) for b in rest)
+        table += (
+            '<details style="margin-top:6px">'
+            '<summary style="cursor:pointer;font-size:12px;color:var(--accent);font-weight:600">'
+            f'6~{5+len(rest)}위 더보기</summary>'
+            f'<table><tbody>{trs_rest}</tbody></table>'
+            '</details>'
+        )
+    return table
 
 
 def _material_color_block(mat_color: Dict) -> str:
