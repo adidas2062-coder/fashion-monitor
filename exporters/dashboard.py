@@ -785,9 +785,7 @@ def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
     if rest:
         trs_rest = "".join(_row(b) for b in rest)
         table += (
-            '<details style="margin-top:6px">'
-            '<summary style="cursor:pointer;font-size:12px;color:var(--accent);font-weight:600">'
-            f'6~{5+len(rest)}위 더보기</summary>'
+            f'<details><summary>6~{5+len(rest)}위 더보기</summary>'
             f'<table><tbody>{trs_rest}</tbody></table>'
             '</details>'
         )
