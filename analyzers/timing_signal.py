@@ -123,9 +123,12 @@ def _kst_today() -> str:
 def _trend_surge(trend_data: List[Dict]) -> Dict[str, float]:
     """급등 키워드 → 변화율 맵."""
     threshold = config.TREND_SURGE_THRESHOLD
+    excluded = set(getattr(config, "NON_PRODUCT_TREND_KEYWORDS", []))
     result: Dict[str, float] = {}
     for t in trend_data:
         kw  = t.get("keyword", "").replace("#", "")
+        if kw in excluded:
+            continue
         pct = t.get("change_pct", 0.0)
         if pct >= threshold:
             if kw not in result or pct > result[kw]:

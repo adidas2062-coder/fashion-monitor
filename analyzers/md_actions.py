@@ -256,7 +256,7 @@ def build(
             ],
             "where_to_look": [
                 f"무신사 상품 상세페이지 — {product_name} 리뷰 탭",
-                "대시보드 '리뷰 인사이트' 섹션",
+                "대시보드 '오늘의 신규 진입 상품' 섹션 — 상품 카드 내 리뷰 인사이트",
             ],
             "decision_criteria": (
                 f"감성 점수 {review.get('sentiment_score', 0):.0f}점 — 50점 미만이면 노출 확대 중단 및 상세페이지 보완, "

@@ -220,22 +220,6 @@ def _cross_platform_block(rows: List[Dict]) -> str:
     )
 
 
-def _review_insight_block(items: List[Dict]) -> str:
-    if not items:
-        return '<p class="empty">분석 가능한 신규 진입 리뷰가 없습니다.</p>'
-    cards = []
-    for item in items[:6]:
-        review = item.get("review_analysis", {})
-        negative = _esc(", ".join(review.get("top_negative", [])[:3]) or "특이사항 없음")
-        cards.append(
-            f'<div class="review-card"><h3>{_esc(item.get("product_name",""))}</h3>'
-            f'<p>{_esc(item.get("brand",""))} · 감성 {review.get("sentiment_score","-")}점</p>'
-            f'<p><b>{_esc(review.get("summary",""))}</b></p>'
-            f'<p class="muted">주의 키워드: {negative}</p></div>'
-        )
-    return "".join(cards)
-
-
 def _data_status_block(status: Dict) -> str:
     counts = status.get("counts", {}) if status else {}
     failed = status.get("failed", []) if status else []
@@ -466,7 +450,11 @@ def _ranking_table(
     </table>"""
 
 
-def _new_entry_cards(new_entries: List[Dict], baseline_available: bool = True) -> str:
+def _new_entry_cards(
+    new_entries: List[Dict],
+    baseline_available: bool = True,
+    reviewed_entries: Optional[List[Dict]] = None,
+) -> str:
     if not baseline_available:
         return (
             '<p class="empty">직전 수집일 비교 데이터가 없어 신규 진입 판정 대기 중입니다. '
@@ -474,12 +462,34 @@ def _new_entry_cards(new_entries: List[Dict], baseline_available: bool = True) -
         )
     if not new_entries:
         return '<p class="empty">신규 진입 없음</p>'
+
+    # 리뷰 인사이트는 신규 진입 상품 일부(review_keywords.analyze_batch 대상)에만
+    # 있으므로, url로 매칭해 같은 상품 카드 안에 바로 붙여서 보여준다 — 별도
+    # 섹션으로 분리해 같은 상품 정보를 두 번 보게 할 필요가 없다.
+    review_by_url = {
+        item.get("url"): item.get("review_analysis", {})
+        for item in (reviewed_entries or [])
+        if item.get("url") and item.get("review_analysis")
+    }
+
     parts = []
     for item in new_entries[:6]:
         price = f"{item.get('price', 0):,}"
         fit   = item.get("fit_type") or "-"
         rating = item.get("rating") or "-"
         reviews = item.get("review_count") or 0
+
+        review = review_by_url.get(item.get("url"))
+        review_html = ""
+        if review:
+            negative = _esc(", ".join(review.get("top_negative", [])[:3]) or "특이사항 없음")
+            review_html = (
+                '<div class="entry-review">'
+                f'<p class="muted">💬 감성 {review.get("sentiment_score","-")}점 — {_esc(review.get("summary",""))}</p>'
+                f'<p class="muted">주의 키워드: {negative}</p>'
+                '</div>'
+            )
+
         parts.append(f"""
         <div class="entry-card">
           <div class="entry-cat">{_esc(item.get('category',''))}</div>
@@ -487,6 +497,7 @@ def _new_entry_cards(new_entries: List[Dict], baseline_available: bool = True) -
           <p class="brand">{_esc(item.get('brand',''))}</p>
           <p>{price}원 | 핏: {_esc(fit)}</p>
           <p>★ {rating} ({reviews:,}리뷰)</p>
+          {review_html}
         </div>""")
     return "\n".join(parts)
 
@@ -1074,6 +1085,8 @@ def generate(
   .entry-cat {{ font-size:10px; color:var(--accent); font-weight:800; margin-bottom:5px; letter-spacing:.8px; text-transform:uppercase; }}
   .entry-card h4 {{ font-size:13px; margin-bottom:4px; line-height:1.4; }}
   .entry-card .brand {{ color:var(--muted); font-size:12px; margin-bottom:5px; }}
+  .entry-review {{ margin-top:8px; padding-top:8px; border-top:1px dashed var(--border); }}
+  .entry-review p {{ font-size:11px; }}
   /* ── 오늘의 액션 ── */
   .action-section {{ background:linear-gradient(135deg,#f5f7ff,#fff); }}
   .action-grid {{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }}
@@ -1092,10 +1105,6 @@ def generate(
   .data-status {{ display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:8px 12px;margin-bottom:14px;border-radius:10px;font-size:11px; }}
   .status-ok {{ background:#ebfbee;color:#2b8a3e; }}
   .status-warning {{ background:#fff4e6;color:#d9480f; }}
-  .review-grid {{ display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px; }}
-  .review-card {{ border:1px solid var(--border);border-radius:10px;padding:12px; }}
-  .review-card h3 {{ font-size:12px;margin-bottom:5px; }}
-  .review-card p {{ font-size:11px; }}
   .muted {{ color:var(--muted); }}
   .method-grid {{ display:grid;grid-template-columns:1fr 1fr;gap:12px; }}
   .method-grid>div {{ background:#f8f9fa;border-radius:10px;padding:13px; }}
@@ -1215,7 +1224,7 @@ def generate(
     </div>
   </details>
 
-  <!-- 3. 신규 진입 상품 -->
+  <!-- 3. 신규 진입 상품 (리뷰 인사이트 포함) -->
   <details id="new-entries" class="section" open>
     <summary>⬆ 오늘의 신규 진입 상품</summary>
     <div class="detail-body">
@@ -1223,15 +1232,9 @@ def generate(
       {_new_entry_cards(
           rank_diff_result.get('new_entries', []),
           rank_diff_result.get('baseline_available', True),
+          reviewed_entries,
       )}
     </div>
-    </div>
-  </details>
-
-  <details id="review-insights" class="section" open>
-    <summary>💬 신규 진입 리뷰 인사이트</summary>
-    <div class="detail-body">
-    <div class="review-grid">{_review_insight_block(reviewed_entries or [])}</div>
     </div>
   </details>
 

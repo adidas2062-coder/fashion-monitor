@@ -13,6 +13,8 @@ from collections import defaultdict
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
+import config
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,10 +100,14 @@ def forecast_from_trend_data(trend_history: List[List[Dict]]) -> List[Dict]:
 
 def _compute_forecast(kw_scores: Dict[str, Dict[str, float]]) -> List[Dict]:
     """이동평균 + 성장률로 예측 점수 계산."""
+    excluded = set(getattr(config, "NON_PRODUCT_TREND_KEYWORDS", []))
     forecasts: List[Dict] = []
 
     for kw, date_scores in kw_scores.items():
-        if not date_scores:
+        # "무신사"처럼 패션 아이템이 아니라 플랫폼 이름인 키워드는 검색 버즈
+        # 모니터링용으로만 수집하며, "무신사에서 '무신사' 관련 상품을 찾으라"는
+        # 식의 의미 없는 액션이 생기지 않도록 예측 대상에서 제외한다.
+        if kw in excluded or not date_scores:
             continue
         sorted_dates = sorted(date_scores.keys())
         values = [date_scores[d] for d in sorted_dates]
