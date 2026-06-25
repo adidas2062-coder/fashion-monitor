@@ -34,7 +34,6 @@
 
 import logging
 import re
-from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
@@ -232,43 +231,6 @@ def _soldout_ratio(rank_diff_result: Dict) -> Dict[str, float]:
         if ratio >= 20.0:
             result[cat] = round(ratio, 1)
     return result
-
-
-def _category_demand_weight(rank_diff_result: Dict) -> Dict[str, float]:
-    """대분류(상의/아우터/바지)별 '오늘 얼마나 활발히 움직이는지'를 가중치로 환산한다.
-
-    예: 더운 날 반팔티(상의)는 신규진입·순위상승이 활발한데 아우터는 거의
-    안 움직인다면, 같은 "1위"라도 아우터 1위가 상의 1위보다 약한 신호다.
-    무신사에 카테고리를 안 가린 진짜 통합 랭킹이 없어 정확한 비중을 직접
-    구할 수는 없으므로, 이미 수집된 카테고리별 신규진입/순위상승 비율을
-    근사 지표로 쓴다 — 평균보다 활발한 카테고리는 가중치를 올리고, 거의
-    안 움직이는 카테고리는 낮춘다. 표본이 적은 초기에는 변동이 과장될 수
-    있어 0.6~1.6 범위로 clip한다.
-    """
-    items = rank_diff_result.get("items", [])
-    if not items:
-        return {}
-
-    moving: Dict[str, int] = defaultdict(int)
-    total: Dict[str, int] = defaultdict(int)
-    for item in items:
-        cat = item.get("category", "") or ""
-        main = next((m for m in _MAIN_CATS if cat.startswith(m)), "")
-        if not main:
-            continue
-        total[main] += 1
-        rank_change = item.get("rank_change")
-        is_new_entry = item.get("comparison_available") and rank_change is None
-        if is_new_entry or (rank_change or 0) > 0:
-            moving[main] += 1
-
-    shares = {cat: moving.get(cat, 0) / total[cat] for cat in total if total[cat]}
-    if not shares:
-        return {}
-    avg_share = sum(shares.values()) / len(shares)
-    if avg_share == 0:
-        return {cat: 1.0 for cat in shares}
-    return {cat: max(0.6, min(1.6, round(share / avg_share, 2))) for cat, share in shares.items()}
 
 
 def _cross_category(trend_surging: Dict[str, float], rank_surging: Dict[str, Dict]) -> List[str]:
@@ -483,7 +445,6 @@ def _score(
     keyword_weight: float = 0.0,
     has_rank_match: bool = True,
     price_adjustment: float = 0.0,
-    category_demand_weight: float = 1.0,
 ) -> Tuple[int, Dict[str, float]]:
     """지표별 기여 점수를 계산하고 (최종 점수, 지표별 breakdown)을 반환한다.
 
@@ -503,8 +464,6 @@ def _score(
         price_adjustment: _price_competitiveness()가 산출한 가격대 경쟁력
             보너스(0~+3) — 카테고리 평균가 대비 크게 벗어난 가격대인데도
             랭킹이 급등했다는 신호.
-        category_demand_weight: _category_demand_weight()가 산출한 대분류별
-            momentum 가중치(0.6~1.6, 기본 1.0) — 랭킹(rank) 점수에 곱해진다.
     """
     breakdown: Dict[str, float] = {}
 
@@ -519,10 +478,6 @@ def _score(
     elif rank_change and rank_change >= 10:  breakdown["rank"] = 25
     elif rank_change and rank_change >= 5:   breakdown["rank"] = 15
     else:                                    breakdown["rank"] = 5
-
-    # 카테고리 momentum 가중치 — 같은 "1위"/"신규진입"이라도 오늘 그 카테고리가
-    # 다른 카테고리 대비 얼마나 활발히 움직이는지에 따라 랭킹 점수를 조정한다.
-    breakdown["rank"] = round(breakdown["rank"] * category_demand_weight, 1)
 
     # 할인율 급등 (15점)
     breakdown["discount_surge"] = 15 if discount_surge else 0
@@ -638,7 +593,6 @@ def _build_evidence_detail(
     discount_streak_days: int,
     keyword_weight: float,
     price_note: Optional[str] = None,
-    category_demand_weight: float = 1.0,
 ) -> List[str]:
     """'왜 이 점수인지'를 MD가 바로 이해할 수 있는 한국어 설명 목록으로 변환."""
     detail: List[str] = []
@@ -653,12 +607,6 @@ def _build_evidence_detail(
         detail.append(f"랭킹 {rank_change:+d}계단 변동 (기여 {breakdown['rank']:.0f}점)")
     else:
         detail.append(f"랭킹 변동 미미 (기여 {breakdown['rank']:.0f}점)")
-    if abs(category_demand_weight - 1.0) >= 0.1:
-        detail.append(
-            f"카테고리 momentum 가중치 {category_demand_weight:.2f}x 적용 — 같은 순위라도 "
-            f"오늘 이 카테고리가 다른 카테고리 대비 {'더 활발히' if category_demand_weight > 1.0 else '덜 활발하게'} "
-            "움직이는 정도를 반영해 랭킹 점수를 조정함"
-        )
     if breakdown.get("discount_surge"):
         detail.append(f"카테고리 평균 할인율 급등 감지 (기여 {breakdown['discount_surge']:.0f}점)")
     if breakdown.get("soldout"):
@@ -761,7 +709,6 @@ def detect(
     discount_cats, discount_history_insufficient = _discount_surge(rank_diff_result, ranking_history)
     soldout_cats     = _soldout_ratio(rank_diff_result)
     cross_keywords   = _cross_category(trend_surging, rank_surging)
-    category_weights = _category_demand_weight(rank_diff_result)
     collected_at     = _kst_today()
 
     if not trend_surging:
@@ -799,7 +746,6 @@ def detect(
         discount_surge = main_cat in discount_cats
         soldout        = main_cat in soldout_cats
         is_cross       = trend_kw in cross_keywords
-        category_weight = category_weights.get(main_cat, 1.0)
         yoy_rank       = _yoy_compare(trend_kw, archive_data)
         weather_warn   = _weather_conflict(trend_kw, temp_max)
         seasonal_adj, seasonal_note = _seasonal_adjustment(trend_kw, temp_max, cat)
@@ -829,7 +775,6 @@ def detect(
             keyword_weight=keyword_weight,
             has_rank_match=has_rank_match,
             price_adjustment=price_adj,
-            category_demand_weight=category_weight,
         )
 
         if score < 30:
@@ -857,9 +802,6 @@ def detect(
             issues.append(f"할인율 {streak_days}일 연속 상승")
         if price_note:
             issues.append(price_note)
-        if abs(category_weight - 1.0) >= 0.1:
-            direction = "활발" if category_weight > 1.0 else "저조"
-            issues.append(f"'{main_cat}' 카테고리 momentum {direction} (가중치 {category_weight:.2f}x)")
 
         # 신뢰구간 산출 — 보강 지표 개수가 많을수록 구간을 좁힌다.
         sample_strength = sum([
@@ -912,9 +854,7 @@ def detect(
             "evidence_detail":   _build_evidence_detail(
                 trend_pct, rank_change, is_true_new_entry, has_rank_match, breakdown,
                 seasonal_note, streak_days, keyword_weight, price_note,
-                category_demand_weight=category_weight,
             ),
-            "category_demand_weight": category_weight,
             "next_checks":       _build_next_checks(
                 main_cat, discount_surge, soldout, is_true_new_entry, has_rank_match, score,
                 season_unclassified_extreme=(
