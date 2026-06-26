@@ -10,46 +10,80 @@ logger = logging.getLogger(__name__)
 def analyze_items_history(items_history: List[List[Dict]]) -> List[Dict]:
     """최근 날짜별 전체 스냅샷으로 카테고리 성장률을 계산한다.
 
-    대분류(상의/아우터/바지) 3건 외에, 각 대분류 안의 세분류(반소매티셔츠,
-    후드집업 등)별 성장률도 `subcategories`에 담아 더 디테일하게 볼 수 있게 한다.
+    연속된 일자 쌍(day N → day N+1)에서 공통 상품의 순위 변화를 집계한 뒤,
+    전반기 평균 vs 후반기 평균을 비교한다 (양수 = 최근 더 오름, 즉 성장).
+
+    각 대분류 아래 세분류(반소매티셔츠, 후드집업 등)도 `subcategories`에 포함한다.
     """
     if len(items_history) < 2:
         return []
     midpoint = max(1, len(items_history) // 2)
 
-    def _collect(days: List[List[Dict]], key_fn) -> Dict[str, List[int]]:
-        ranks = defaultdict(list)
-        for items in days:
-            for item in items:
-                if item.get("period", "1일") != "1일":
-                    continue
-                key = key_fn(item.get("category", ""))
-                rank = item.get("rank")
-                if key and rank:
-                    ranks[key].append(rank)
-        return ranks
+    def _build_pairs(days):
+        return [(days[i], days[i + 1]) for i in range(len(days) - 1)]
+
+    first_pairs  = _build_pairs(items_history[:midpoint])
+    second_pairs = _build_pairs(items_history[midpoint:])
+    # 한 쪽이 비면 전체 히스토리의 첫·마지막 쌍으로 대체
+    if not first_pairs:
+        first_pairs  = [(items_history[0], items_history[1])]
+    if not second_pairs:
+        second_pairs = [(items_history[-2], items_history[-1])]
+
+    def _pair_momentum(prev_day, curr_day, key_fn) -> Dict[str, float]:
+        """연속 두 스냅샷에서 카테고리별 공통 상품 평균 순위 변화 (양수 = 개선)."""
+        prev_ranks: Dict[str, Dict[str, int]] = defaultdict(dict)
+        for item in prev_day:
+            if item.get("period", "1일") != "1일":
+                continue
+            key = key_fn(item.get("category", ""))
+            pname = item.get("product_name", "")
+            rank  = item.get("rank")
+            if key and pname and rank:
+                prev_ranks[key][pname] = rank
+
+        cat_changes: Dict[str, list] = defaultdict(list)
+        for item in curr_day:
+            if item.get("period", "1일") != "1일":
+                continue
+            key  = key_fn(item.get("category", ""))
+            pname = item.get("product_name", "")
+            rank  = item.get("rank")
+            if key and pname and rank and pname in prev_ranks.get(key, {}):
+                cat_changes[key].append(prev_ranks[key][pname] - rank)
+
+        return {k: sum(v) / len(v) for k, v in cat_changes.items() if v}
+
+    def _avg_momentum(pairs, key_fn) -> Dict[str, float]:
+        all_changes: Dict[str, list] = defaultdict(list)
+        for prev_day, curr_day in pairs:
+            for key, avg_c in _pair_momentum(prev_day, curr_day, key_fn).items():
+                all_changes[key].append(avg_c)
+        return {k: sum(v) / len(v) for k, v in all_changes.items()}
 
     def _build(key_fn) -> List[Dict]:
-        previous = {
-            k: sum(v) / len(v)
-            for k, v in _collect(items_history[:midpoint], key_fn).items() if v
-        }
-        current = {
-            k: sum(v) / len(v)
-            for k, v in _collect(items_history[midpoint:], key_fn).items() if v
-        }
+        prev_m = _avg_momentum(first_pairs, key_fn)
+        this_m = _avg_momentum(second_pairs, key_fn)
+
         results = []
-        for key, current_rank in current.items():
-            previous_rank = previous.get(key)
-            change = round(previous_rank - current_rank, 1) if previous_rank else 0
-            growth = round(change / previous_rank * 100, 1) if previous_rank else 0
+        for key in set(prev_m) | set(this_m):
+            if not key:
+                continue
+            this_val = this_m.get(key)
+            prev_val = prev_m.get(key)
+            if this_val is None:
+                continue
+            # 후반기 모멘텀 - 전반기 모멘텀 (양수 = 최근 더 많이 상승)
+            change = round(this_val - prev_val, 2) if prev_val is not None else round(this_val, 2)
+            # 카테고리 내 최대 일일 순위 변화 폭(29)으로 정규화
+            growth = round(change / 29 * 100, 1)
             results.append({
-                "category": key,
-                "this_avg": round(current_rank, 1),
-                "prev_avg": round(previous_rank, 1) if previous_rank else None,
+                "category":   key,
+                "this_avg":   round(this_val, 2),
+                "prev_avg":   round(prev_val, 2) if prev_val is not None else None,
                 "rank_change": change,
                 "growth_pct": growth,
-                "trend": "📈 상승" if change > 2 else ("📉 하락" if change < -2 else "➡️ 유지"),
+                "trend": "📈 상승" if change > 0.3 else ("📉 하락" if change < -0.3 else "➡️ 유지"),
             })
         return sorted(results, key=lambda row: row["growth_pct"], reverse=True)
 
@@ -64,9 +98,11 @@ def analyze_items_history(items_history: List[List[Dict]]) -> List[Dict]:
 
     sub_by_main: Dict[str, List[Dict]] = defaultdict(list)
     for row in _build(_sub_key):
-        main, sub = row["category"].split("_", 1)
-        row["subcategory"] = sub
-        sub_by_main[main].append(row)
+        parts = row["category"].split("_", 1)
+        if len(parts) == 2:
+            main, sub = parts
+            row["subcategory"] = sub
+            sub_by_main[main].append(row)
 
     for row in main_results:
         row["subcategories"] = sub_by_main.get(row["category"], [])

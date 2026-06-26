@@ -667,8 +667,8 @@ def _keyword_table(keyword_data: List[Dict]) -> str:
             badge = '<span style="background:#ede0ff;color:#7d3c98;padding:2px 6px;border-radius:10px;font-size:11px">NEW</span>'
         return f"<tr><td>{r['rank']}</td><td>{badge}</td><td>{_esc(r['keyword'])}</td></tr>"
 
-    initial = rows[:5]
-    extra   = rows[5:]
+    initial = rows[:10]
+    extra   = rows[10:]
     initial_html = "".join(_row_html(r) for r in initial)
     extra_html   = "".join(_row_html(r) for r in extra)
 
@@ -771,10 +771,16 @@ def _events_block(musinsa_evs: List[Dict], cm29_evs: List[Dict]) -> str:
     parts.append('<div style="margin-top:14px"><h3 style="font-size:13px;color:#555;margin-bottom:8px">🛍 29CM 에디션</h3>')
     if cm29_evs:
         for e in cm29_evs[:6]:
-            badge = _esc(e.get("period") or f'{e.get("item_count",0)}개 상품')
+            badge = _esc(e.get("date_range") or e.get("period") or e.get("sub_title",""))
+            title = _esc(e.get("title", ""))
+            url   = e.get("url", "")
+            title_html = (
+                f'<a href="{_esc(url)}" target="_blank" style="color:inherit;text-decoration:none">{title}</a>'
+                if url else title
+            )
             parts.append(
                 f'<div class="event-item">'
-                f'<span class="event-title">{_esc(e.get("title",""))}</span>'
+                f'<span class="event-title">{title_html}</span>'
                 f'<span class="event-badge">{badge}</span>'
                 f'</div>'
             )
@@ -913,6 +919,8 @@ def generate(
     backtests: Optional[List[Dict]] = None,
     history_dates: Optional[List[str]] = None,
     backtest_stats: Optional[Dict] = None,
+    top_male: Optional[List[Dict]] = None,
+    top_all: Optional[List[Dict]] = None,
 ) -> str:
     """
     대시보드 HTML 생성 후 파일 저장.
@@ -956,7 +964,6 @@ def generate(
     for key in overall_index:
         overall_index[key].sort(key=lambda x: x.get("rank") or 999)
         overall_index[key] = overall_index[key][:30]
-    overall_json = _json_for_script(overall_index)
 
     # 기간 × 카테고리(대분류 + 세분류) 인덱싱 — 남성
     # key 예시: "1일|상의", "주간|상의_반소매티셔츠", "월간|아우터_후드집업"
@@ -1002,7 +1009,28 @@ def generate(
         ranking_index[key].sort(key=lambda x: x.get("rank") or 999)
         ranking_index[key] = ranking_index[key][:30]
 
+    # 전체 카테고리 통합 TOP (gf=M / gf=A, categoryCode="" 로 수집한 데이터)
+    # ranking_index / overall_index에 "기간|전체" 키로 통합
+    for item in sorted(top_male or [], key=lambda x: x.get("rank") or 999):
+        period = item.get("period", "1일")
+        ranking_index.setdefault(f"{period}|전체", []).append(_to_row(item))
+    for item in sorted(top_all or [], key=lambda x: x.get("rank") or 999):
+        period = item.get("period", "1일")
+        overall_index.setdefault(f"{period}|전체", []).append({
+            "rank":          item.get("rank"),
+            "rank_change":   item.get("rank_change"),
+            "comparison_available": item.get("comparison_available", False),
+            "product_name":  item.get("product_name", ""),
+            "brand":         item.get("brand", ""),
+            "price":         item.get("price", 0),
+            "discount_rate": item.get("discount_rate", 0),
+            "url":           item.get("url", ""),
+            "category":      "전체",
+            "period":        period,
+        })
+
     ranking_json = _json_for_script(ranking_index)
+    overall_json = _json_for_script(overall_index)
 
     html = f"""<!DOCTYPE html>
 <html lang="ko">
@@ -1192,6 +1220,7 @@ def generate(
       </div>
     </div>
     <div class="tabs" id="main-cat-tabs" style="margin-bottom:6px">
+      <div class="tab" onclick="switchMainCat('전체',this)">전체</div>
       <div class="tab active" onclick="switchMainCat('상의',this)">상의</div>
       <div class="tab" onclick="switchMainCat('아우터',this)">아우터</div>
       <div class="tab" onclick="switchMainCat('바지',this)">바지</div>
@@ -1385,7 +1414,7 @@ function toggleCatTree(el) {{
     ' <span style="color:#888;font-size:10px">(' + subRows.length + ')</span>';
 }}
 
-// 랭킹 데이터
+// 랭킹 데이터 (카테고리별 + 전체 통합 TOP 포함)
 const rankingData  = {ranking_json};   // 남성(gf=M)
 const overallData  = {overall_json};   // 전체(gf=A)
 const rankingBaselineAvailable = {
@@ -1395,6 +1424,7 @@ let currentGender  = '남성';           // 현재 선택 성별
 
 // 세분류 정의
 const subCats = {{
+  '전체':  [],
   '상의':  ['전체','반소매티셔츠','긴소매티셔츠','맨투맨스웨트','후드티셔츠','셔츠블라우스','니트스웨터','피케카라티','민소매티셔츠'],
   '아우터': ['전체','후드집업','블루종MA1','슈트블레이저','나일론코치','카디건','사파리헌팅','트러커재킷','환절기코트','플리스뽀글이','레더라이더스'],
   '바지':  ['전체','데님팬츠','트레이닝조거','슈트슬랙스','숏팬츠','코튼팬츠'],

@@ -121,15 +121,25 @@ def run(dry_run: bool = False) -> None:
     time.sleep(config.REQUEST_DELAY)
 
     # 카테고리(상의/아우터/바지)를 안 가린 진짜 통합 "전체 베스트" 랭킹.
-    # 응답 자체에는 상품별 카테고리가 없어서, all_overall(이미 카테고리가 붙은
-    # 랭킹)과 URL로 대조해 실제 카테고리 비중을 구하는 데 쓴다.
+    # category_mix 분석용: gf=A, DAILY, 100건
     overall_best = _run(
         "무신사 통합 전체 베스트 수집",
         musinsa.fetch_category,
-        "전체", "000", "DAILY", 100,
+        "전체", "", "DAILY", 100,
         gf="A",
     ) or []
     time.sleep(config.REQUEST_DELAY)
+
+    # 대시보드 "전체" 탭용 — 1일/주간/월간 × 남성(gf=M) / 전체(gf=A)
+    male_best: list = []
+    overall_best_tabs: list = []
+    for _p in all_periods:
+        _items = _run(f"무신사 남성 전체 베스트 {_p}", musinsa.fetch_category, "전체", "", _p, 30, gf="M") or []
+        male_best.extend(_items)
+        time.sleep(config.REQUEST_DELAY)
+        _items = _run(f"무신사 전체 전체 베스트 {_p}", musinsa.fetch_category, "전체", "", _p, 30, gf="A") or []
+        overall_best_tabs.extend(_items)
+        time.sleep(config.REQUEST_DELAY)
 
     # 대시보드용 — 항상 3개 기간 모두 수집 (표시 전용, 노션 미저장)
     if set(periods) == set(all_periods):
@@ -416,6 +426,8 @@ def run(dry_run: bool = False) -> None:
         backtests,
         snapshot_store.available_dates("musinsa_rankings"),
         backtest_stats,
+        top_male=male_best,
+        top_all=overall_best_tabs,
     )
 
     _run("시그널 스냅샷 저장", snapshot_store.save, "signals", signals)

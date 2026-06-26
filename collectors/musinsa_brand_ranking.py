@@ -40,7 +40,16 @@ def collect(top_n: int = 30) -> List[Dict]:
             continue
         fluct = m.get("title", {}).get("fluctuation", {})
         fluct_type = fluct.get("type", "NONE")
-        fluct_amt  = int(fluct.get("amount", 0) or 0)
+        raw_amt = str(fluct.get("amount", 0) or 0)
+        if "천" in raw_amt:
+            fluct_amt = int(float(raw_amt.replace("천", "").strip()) * 1000)
+        elif "만" in raw_amt:
+            fluct_amt = int(float(raw_amt.replace("만", "").strip()) * 10000)
+        else:
+            try:
+                fluct_amt = int(float(raw_amt))
+            except (ValueError, TypeError):
+                fluct_amt = 0
         brand_name = m.get("title", {}).get("title", {}).get("text", "")
         labels = m.get("title", {}).get("labels", [])
         label_text = labels[0].get("text", "") if labels else ""
