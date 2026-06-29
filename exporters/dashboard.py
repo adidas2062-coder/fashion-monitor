@@ -852,6 +852,92 @@ def _material_color_block(mat_color: Dict) -> str:
     return "\n".join(parts) if parts else '<p class="empty">데이터 없음</p>'
 
 
+def _magazine_block(mag_trend: Dict) -> str:
+    """무신사 매거진 트렌드 블록."""
+    if not mag_trend or not mag_trend.get("recent_items"):
+        return '<p class="empty">수집 중</p>'
+
+    parts = []
+
+    # 키워드 태그
+    kws = mag_trend.get("top_keywords", [])
+    if kws:
+        tags = "".join(
+            f'<span class="issue-tag" style="margin:2px">{_esc(k)}({n})</span>'
+            for k, n in kws[:6]
+        )
+        parts.append(f'<p style="margin-bottom:8px"><b>주목 키워드:</b> {tags}</p>')
+
+    # 콘텐츠 유형 분포
+    types = mag_trend.get("content_types", [])
+    if types:
+        type_str = " · ".join(f"{_esc(t)}({n})" for t, n in types[:5])
+        parts.append(f'<p style="margin-bottom:8px;color:#555;font-size:13px"><b>유형:</b> {type_str}</p>')
+
+    # 최신 콘텐츠 목록
+    parts.append('<div style="margin-top:8px">')
+    for item in mag_trend.get("recent_items", [])[:5]:
+        title = _esc(item.get("title", ""))
+        brand = _esc(item.get("brand", ""))
+        ct    = _esc(item.get("content_type", ""))
+        views = _esc(item.get("view_count", ""))
+        date  = _esc(item.get("date", ""))
+        url   = item.get("url", "")
+        title_html = (
+            f'<a href="{_esc(url)}" target="_blank" style="color:#333;font-weight:600;font-size:13px;text-decoration:none">{title}</a>'
+            if url else f'<span style="font-weight:600;font-size:13px">{title}</span>'
+        )
+        parts.append(
+            f'<div style="border-left:3px solid #e0e0e0;padding:6px 10px;margin-bottom:6px">'
+            f'{title_html}'
+            f'<div style="color:#888;font-size:11px;margin-top:2px">'
+            f'<span class="issue-tag" style="font-size:10px;padding:1px 5px">{ct}</span>'
+            f' {brand} · 조회 {views} · {date}</div>'
+            f'</div>'
+        )
+    parts.append('</div>')
+    return "\n".join(parts)
+
+
+def _soldout_block(soldout_data: List[Dict]) -> str:
+    """카테고리별 이탈률(품절 신호) 블록."""
+    if not soldout_data:
+        return '<p class="empty">데이터 2주 이상 쌓이면 표시됩니다</p>'
+
+    surge = [s for s in soldout_data if s.get("delta", 0) >= 15][:8]
+    if not surge:
+        surge = soldout_data[:6]
+
+    rows = []
+    for s in surge:
+        cat   = _esc(s["category"])
+        today = s["today_rate"]
+        avg   = s["avg_rate"]
+        delta = s["delta"]
+        trend = _esc(s["trend"])
+        streak = s.get("streak", 0)
+        streak_str = f' <span style="color:#888;font-size:11px">({streak}일↑)</span>' if streak >= 2 else ""
+        color = "#e74c3c" if delta >= 15 else ("#e67e22" if delta >= 5 else "#888")
+        rows.append(
+            f'<tr>'
+            f'<td style="font-size:13px">{cat}</td>'
+            f'<td style="color:{color};font-weight:bold">{trend}{streak_str}</td>'
+            f'<td style="text-align:right">{today:.0f}%</td>'
+            f'<td style="text-align:right;color:#888">{avg:.0f}%</td>'
+            f'<td style="text-align:right;color:{color}">{delta:+.0f}%p</td>'
+            f'</tr>'
+        )
+
+    return (
+        '<p style="font-size:12px;color:#888;margin-bottom:8px">'
+        'top30 이탈률 급증 = 수요 초과(품절) 또는 급격한 트렌드 교체 가능성</p>'
+        '<table><thead><tr>'
+        '<th>카테고리</th><th>신호</th><th>오늘</th><th>평균</th><th>증감</th>'
+        '</tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
+
+
 def _cat_growth_block(cat_growth: List[Dict]) -> str:
     """카테고리 성장률 테이블 — 각 대분류 행 아래로 세분류가 가지치기(트리)되어 펼쳐진다."""
     if not cat_growth:
@@ -921,6 +1007,8 @@ def generate(
     backtest_stats: Optional[Dict] = None,
     top_male: Optional[List[Dict]] = None,
     top_all: Optional[List[Dict]] = None,
+    magazine_trend: Optional[Dict] = None,
+    soldout_trend: Optional[List[Dict]] = None,
 ) -> str:
     """
     대시보드 HTML 생성 후 파일 저장.
@@ -1185,6 +1273,8 @@ def generate(
       <a class="nav-item" href="#cross-platform">↔ 교차 상승</a>
       <a class="nav-item" href="#keywords">🔍 검색어</a>
       <a class="nav-item" href="#events">🎪 기획전 현황</a>
+      <a class="nav-item" href="#magazine">📰 무신사 매거진</a>
+      <a class="nav-item" href="#soldout">🔴 이탈률 추이</a>
       <a class="nav-item" href="#brand-ranking">📊 브랜드 랭킹</a>
       <a class="nav-item" href="#trends">📈 트렌드</a>
       <a class="nav-item" href="#steady">🏅 스테디셀러</a>
@@ -1313,6 +1403,22 @@ def generate(
     <summary>🎪 기획전 & 에디션 현황</summary>
     <div class="detail-body">
     {_events_block(musinsa_evs or [], cm29_evs or [])}
+    </div>
+  </details>
+
+  <!-- 6b. 무신사 매거진 트렌드 -->
+  <details id="magazine" class="section" open>
+    <summary>📰 무신사 매거진 트렌드</summary>
+    <div class="detail-body">
+    {_magazine_block(magazine_trend or {{}})}
+    </div>
+  </details>
+
+  <!-- 6c. 카테고리 이탈률 추이 (품절 신호) -->
+  <details id="soldout" class="section" open>
+    <summary>🔴 카테고리 이탈률 추이 (품절·수요 신호)</summary>
+    <div class="detail-body">
+    {_soldout_block(soldout_trend or [])}
     </div>
   </details>
 

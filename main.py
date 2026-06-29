@@ -152,11 +152,12 @@ def run(dry_run: bool = False) -> None:
         time.sleep(config.REQUEST_DELAY)
 
     # 29CM 남성 랭킹 수집 (매일)
-    from collectors import cm29_ranking, musinsa_brand_ranking, musinsa_events, cm29_events
+    from collectors import cm29_ranking, musinsa_brand_ranking, musinsa_events, cm29_events, musinsa_magazine
     cm29_data    = _run("29CM 남성 랭킹 수집",    cm29_ranking.collect) or []
     brand_ranks  = _run("무신사 브랜드 랭킹 수집",  musinsa_brand_ranking.collect) or []
     musinsa_evs  = _run("무신사 기획전 수집",       musinsa_events.collect) or []
     cm29_evs     = _run("29CM 에디션 수집",        cm29_events.collect) or []
+    mag_items    = _run("무신사 매거진 수집",       musinsa_magazine.collect) or []
 
     # 이상 감지
     _check_anomaly("무신사 남성 랭킹", today_rankings, min_count=30)
@@ -309,13 +310,15 @@ def run(dry_run: bool = False) -> None:
     ) or []
 
     # 신규 모듈
-    from analyzers import material_color_trend, category_growth
+    from analyzers import material_color_trend, category_growth, magazine_trend as magazine_trend_mod, soldout_trend as soldout_trend_mod
     mat_color    = _run("소재·색상 트렌드 집계", material_color_trend.analyze, new_entries) or {}
     cat_growth = _run(
         "카테고리 성장률 분석",
         category_growth.analyze_items_history,
         ranking_history_14d,
     ) or []
+    mag_trend    = _run("매거진 트렌드 분석", magazine_trend_mod.analyze, mag_items) or {}
+    soldout_data = _run("이탈률 추이 분석", soldout_trend_mod.analyze, ranking_history_14d) or []
 
     # 신규 진입 리뷰 키워드 분석
     from analyzers import review_keywords, steady_seller, trend_forecast
@@ -428,6 +431,8 @@ def run(dry_run: bool = False) -> None:
         backtest_stats,
         top_male=male_best,
         top_all=overall_best_tabs,
+        magazine_trend=mag_trend,
+        soldout_trend=soldout_data,
     )
 
     _run("시그널 스냅샷 저장", snapshot_store.save, "signals", signals)
