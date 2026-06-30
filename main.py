@@ -189,22 +189,30 @@ def run(dry_run: bool = False) -> None:
     # 비교는 같은 기간끼리 수행한다. 운영 시그널은 일간 랭킹만 사용한다.
     from exporters import snapshot_store
     previous_dashboard_rankings = snapshot_store.load_latest_before(
-        "musinsa_rankings", today.isoformat(), weekdays_only=True
+        "musinsa_rankings", today.isoformat()
     )
     previous_daily_rankings = [
         item for item in previous_dashboard_rankings
         if item.get("period", "1일") == "1일"
     ]
     previous_cm29 = snapshot_store.load_latest_before(
-        "cm29_rankings", today.isoformat(), weekdays_only=True
+        "cm29_rankings", today.isoformat()
     )
     previous_overall = snapshot_store.load_latest_before(
-        "musinsa_overall", today.isoformat(), weekdays_only=True
+        "musinsa_overall", today.isoformat()
+    )
+    previous_male_best = snapshot_store.load_latest_before(
+        "musinsa_best", today.isoformat()
+    )
+    previous_overall_best = snapshot_store.load_latest_before(
+        "musinsa_overall_best", today.isoformat()
     )
 
     # 날짜별 전체 원본은 노션 저장 여부와 무관하게 항상 보존한다.
     _run("무신사 전체 스냅샷 저장", snapshot_store.save, "musinsa_rankings", dashboard_rankings)
     _run("무신사 전체성별 스냅샷 저장", snapshot_store.save, "musinsa_overall", all_overall)
+    _run("무신사 남성 통합 베스트 스냅샷 저장", snapshot_store.save, "musinsa_best", male_best)
+    _run("무신사 전체 통합 베스트 스냅샷 저장", snapshot_store.save, "musinsa_overall_best", overall_best_tabs)
     _run("29CM 스냅샷 저장", snapshot_store.save, "cm29_rankings", cm29_data)
     _run("트렌드 스냅샷 저장", snapshot_store.save, "trends", trend_data)
     ranking_history_14d = snapshot_store.load_history("musinsa_rankings", limit=14)
@@ -406,6 +414,28 @@ def run(dry_run: bool = False) -> None:
         "summary": "",
         "baseline_available": False,
     }
+    male_best_rank_result = _rd.analyze(
+        male_best, previous_male_best
+    ) if previous_male_best else {
+        "items": male_best,
+        "top_risers": [],
+        "top_fallers": [],
+        "new_entries": [],
+        "dropouts": [],
+        "summary": "",
+        "baseline_available": False,
+    }
+    overall_best_rank_result = _rd.analyze(
+        overall_best_tabs, previous_overall_best
+    ) if previous_overall_best else {
+        "items": overall_best_tabs,
+        "top_risers": [],
+        "top_fallers": [],
+        "new_entries": [],
+        "dropouts": [],
+        "summary": "",
+        "baseline_available": False,
+    }
 
     from exporters import dashboard
     dash_path = _run(
@@ -429,8 +459,8 @@ def run(dry_run: bool = False) -> None:
         backtests,
         snapshot_store.available_dates("musinsa_rankings"),
         backtest_stats,
-        top_male=male_best,
-        top_all=overall_best_tabs,
+        top_male=male_best_rank_result["items"],
+        top_all=overall_best_rank_result["items"],
         magazine_trend=mag_trend,
         soldout_trend=soldout_data,
     )
