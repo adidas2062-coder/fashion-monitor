@@ -170,7 +170,7 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
         trend_data = [{"keyword": "#린넨", "change_pct": 60}]
         rank_result = {
             "items": [{"product_name": "린넨 셔츠", "category": "상의_전체",
-                       "rank": 3, "rank_change": 8, "discount_rate": 10}],
+                       "rank": 3, "rank_change": 12, "discount_rate": 10}],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         return trend_data, rank_result
@@ -210,28 +210,79 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
         trend_data = [{"keyword": "#후드", "change_pct": 60}]
         rank_result = {
             "items": [{"product_name": "후드 집업", "category": "상의_전체",
-                       "rank": 3, "rank_change": 8, "discount_rate": 0}],
+                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         mild = timing_signal.detect(trend_data, rank_result, None, {"temp_max": 25})
         hot = timing_signal.detect(trend_data, rank_result, None, {"temp_max": 33})
+        self.assertTrue(mild and hot)
         # 둘 다 역행 페널티가 있지만, 더 더운 날씨가 더 큰 페널티(더 낮은 점수)를 받아야 한다 — 단순 on/off가 아님.
         self.assertNotEqual(mild[0]["score"], hot[0]["score"])
         self.assertLess(hot[0]["score"], mild[0]["score"])
         self.assertLess(hot[0]["seasonal_adjustment"], mild[0]["seasonal_adjustment"])
 
-    def test_trend_only_signal_does_not_get_new_entry_rank_credit(self):
-        """랭킹 매칭이 전혀 없는 트렌드 단독 시그널은 '신규 진입'으로 오판해
-        랭킹 25점을 받으면 안 된다 (회귀 테스트)."""
+    def test_trend_only_signal_is_gated_out(self):
+        """내부 근거(랭킹 매칭/실시간 검색어/내부 흐름)가 전혀 없는 트렌드 단독
+        키워드는 시그널을 만들지 않는다 — 검색 API는 참고 지표일 뿐 단독 트리거가
+        아니다 (2026-07-02 내부 데이터 우선 개편)."""
         trend_data = [{"keyword": "레이어드", "change_pct": 60}]
         rank_result = {"items": [], "new_entries": [], "top_risers": [], "top_fallers": []}
         signals = timing_signal.detect(trend_data, rank_result)
+        self.assertEqual([], signals)
+
+    def test_low_absolute_trend_score_is_noise(self):
+        """검색 지수 절대값이 TREND_MIN_ABS_SCORE 미만이면 백분율이 커도 트렌드
+        급등으로 치지 않는다 (지수 1.5→4.6 = +197% 같은 저기저 노이즈 차단)."""
+        rank_result = {
+            "items": [],
+            "new_entries": [
+                {"product_name": "오버핏 후드티", "category": "상의_전체", "rank": 3},
+                {"product_name": "오버핏 티셔츠", "category": "상의_전체", "rank": 7},
+            ],
+            "top_risers": [], "top_fallers": [],
+        }
+        noise_trend = [{"keyword": "오버핏", "change_pct": 197, "score": 4.6}]
+        signals = timing_signal.detect(noise_trend, rank_result)
+        # 신규 진입이라는 내부 근거가 있으니 시그널은 생기지만, 트렌드 점수는 0이어야 한다.
         self.assertTrue(signals)
-        signal = signals[0]
-        self.assertFalse(signal["is_new_entry"])
-        self.assertFalse(signal["has_rank_match"])
-        self.assertEqual(0, signal["score_breakdown"]["rank"])
-        self.assertEqual(30, signal["score"])  # 트렌드 30점만 인정.
+        self.assertEqual(0, signals[0]["score_breakdown"]["trend"])
+
+        solid_trend = [{"keyword": "오버핏", "change_pct": 197, "score": 55}]
+        signals2 = timing_signal.detect(solid_trend, rank_result)
+        self.assertGreater(signals2[0]["score_breakdown"]["trend"], 0)
+
+    def test_realtime_keyword_creates_signal_and_scores(self):
+        """무신사 실시간 검색어 상승은 트렌드 급등 없이도 내부 근거로 시그널을
+        만들고 점수(최대 15점)에 반영된다."""
+        rank_result = {
+            "items": [{"product_name": "버뮤다 팬츠", "category": "바지_전체",
+                       "rank": 5, "rank_change": 12, "discount_rate": 0}],
+            "new_entries": [], "top_risers": [], "top_fallers": [],
+        }
+        realtime = [{"rank": 3, "keyword": "버뮤다", "fluctuation_type": "UP",
+                     "fluctuation_amount": 4}]
+        signals = timing_signal.detect([], rank_result, None, None, None, None, None, realtime)
+        self.assertTrue(signals)
+        signal = next(s for s in signals if "버뮤다" in s["keyword"])
+        self.assertEqual(15, signal["score_breakdown"]["realtime_keyword"])
+
+    def test_declining_internal_flow_penalizes_score(self):
+        """랭킹 내 키워드 포함 상품 수가 감소 추세면 internal_flow가 음수로 반영된다."""
+        trend_data = [{"keyword": "오버핏", "change_pct": 60}]
+        rank_result = {
+            "items": [],
+            "new_entries": [{"product_name": "오버핏 티셔츠", "category": "상의_전체", "rank": 3}],
+            "top_risers": [], "top_fallers": [],
+        }
+        def day(count):
+            return [{"period": "1일", "category": "상의_전체",
+                     "product_name": f"오버핏 상품{i}", "discount_rate": 0}
+                    for i in range(count)]
+        declining_history = [day(10), day(10), day(9), day(9), day(9), day(8)]
+        signals = timing_signal.detect(
+            trend_data, rank_result, None, None, None, declining_history)
+        self.assertTrue(signals)
+        self.assertLess(signals[0]["score_breakdown"]["internal_flow"], 0)
 
     def test_true_new_entry_still_gets_full_rank_credit(self):
         """실제로 new_entries에 잡힌 신규 진입 상품은 여전히 랭킹 만점을 받아야 한다."""
@@ -245,7 +296,7 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
         signal = signals[0]
         self.assertTrue(signal["is_new_entry"])
         self.assertTrue(signal["has_rank_match"])
-        self.assertEqual(25, signal["score_breakdown"]["rank"])
+        self.assertEqual(30, signal["score_breakdown"]["rank"])
 
     def test_seasonal_adjustment_varies_by_category(self):
         """동일 키워드·기온이라도 매칭된 상품의 카테고리(아우터 vs 바지)에 따라
@@ -253,12 +304,12 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
         trend_data = [{"keyword": "니트", "change_pct": 60}]
         outer_result = {
             "items": [{"product_name": "니트 가디건", "category": "아우터_전체",
-                       "rank": 3, "rank_change": 8, "discount_rate": 0}],
+                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         pants_result = {
             "items": [{"product_name": "니트 팬츠", "category": "바지_전체",
-                       "rank": 3, "rank_change": 8, "discount_rate": 0}],
+                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         outer_signals = timing_signal.detect(trend_data, outer_result, None, {"temp_max": 30})
@@ -509,7 +560,7 @@ class TimingSignalWeatherConflictConsistencyTest(unittest.TestCase):
         trend_data = [{"keyword": "#후드", "change_pct": 60}]
         rank_result = {
             "items": [{"product_name": "후드 집업", "category": "상의_전체",
-                       "rank": 3, "rank_change": 8, "discount_rate": 0}],
+                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         # 25도는 _weather_conflict()(기존 on/off, 28도 기준)에서는 False지만
@@ -643,7 +694,7 @@ class TimingSignalScoreRangeNamingTest(unittest.TestCase):
         trend_data = [{"keyword": "#린넨", "change_pct": 45}]
         rank_result = {
             "items": [{"product_name": "린넨 셔츠", "category": "상의_전체",
-                       "rank": 3, "rank_change": 8, "discount_rate": 0}],
+                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         signals = timing_signal.detect(trend_data, rank_result)

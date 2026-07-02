@@ -1,19 +1,30 @@
 """
-기획전 타이밍 시그널 감지기 (강화판).
+기획전 타이밍 시그널 감지기 (내부 데이터 우선판).
+
+설계 원칙 (2026-07-02 개편): 무신사/29CM **내부 흐름이 주 지표**이고, 네이버/구글
+검색 트렌드는 **참고 지표**다. 시그널은 내부 근거(랭킹 급등·신규 진입, 실시간
+검색어 상승, 내부 키워드 흐름 증가) 중 하나 이상이 있어야만 생성되며, 검색
+트렌드 급등만으로는 시그널이 만들어지지 않는다. 또한 검색 트렌드는 절대 지수가
+TREND_MIN_ABS_SCORE(기본 20) 미만이면 저기저 노이즈(예: 지수 1.5→4.6, +197%)로
+간주해 급등으로 치지 않는다.
 
 감지 지표:
-  1. 트렌드 급등      — 구글/네이버 전주 대비 +TREND_SURGE_THRESHOLD% 이상
-  2. 랭킹 급등        — RANK_SURGE_THRESHOLD 계단 이상 상승 OR 신규 진입
-  3. 할인율 급등      — 카테고리 평균 할인율이 전날 대비 5%p 이상 상승 (경쟁사 프로모션 감지)
-  4. 품절 비율 급증   — 카테고리 내 품절 상품 20% 이상 (수요 과잉)
-  5. 복수 카테고리 교차 — 같은 키워드가 상의+아우터/바지 동시 급등
-  6. YoY 비교         — 작년 동기 동일 키워드 랭킹 대비 순위 상승
-  7. 할인 지속성      — snapshot_store 히스토리 기준 평균 할인율이 N일 연속 상승 중인지
-  8. 가격대 경쟁력    — 매칭 상품 가격이 동일 카테고리 평균가 대비 ±30% 이상 벗어났는데도
+  1. 랭킹 급등        — RANK_SURGE_THRESHOLD 계단 이상 상승 OR 신규 진입 [내부·주]
+  2. 내부 키워드 흐름 — 무신사 랭킹 내 키워드 포함 상품 수의 최근 추세 [내부·주]
+  3. 실시간 검색어    — 무신사 실시간 검색어 TOP30 진입/상승 [내부·주]
+  4. 트렌드 급등      — 구글/네이버 전주 대비 상승 (절대 지수 하한 적용) [외부·참고]
+  5. 할인율 급등      — 카테고리 평균 할인율이 전날 대비 5%p 이상 상승
+  6. 품절 비율 급증   — 카테고리 내 품절 상품 20% 이상 (수요 과잉)
+  7. 복수 카테고리 교차 — 같은 키워드가 상의+아우터/바지 동시 급등
+  8. YoY 비교         — 작년 동기 동일 키워드 랭킹 대비 순위 상승
+  9. 할인 지속성      — snapshot_store 히스토리 기준 평균 할인율이 N일 연속 상승 중인지
+ 10. 가격대 경쟁력    — 매칭 상품 가격이 동일 카테고리 평균가 대비 ±30% 이상 벗어났는데도
                        랭킹이 급등(저가 회전 수요 또는 고가 프레스티지 수요로 추정)
 
 신뢰도 점수 (0~100):
-  트렌드(30점) + 랭킹(25점) + 할인율(15점) + 품절(10점) + 복수교차(10점) + YoY(10점)
+  랭킹(30점, 카테고리 비중 가중 후 35점 캡) + 내부 키워드 흐름(-15~+20점)
+  + 실시간 검색어(15점) + 트렌드(10점, 참고) + 할인율(10점) + 품절(5점)
+  + 복수교차(5점) + YoY(5점)
   + 할인 지속성 보너스(최대 5점) + 가격대 경쟁력 보너스(최대 3점, 가산 한도 포함 100점 캡)
   - 계절 역행 페널티(기온/카테고리 기준 점진적, 최대 -20점)
   ± 백테스트 피드백 가중치(키워드 패턴별 과거 적중률 기반, 최대 ±10점)
@@ -121,8 +132,15 @@ def _kst_today() -> str:
     return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
 
 def _trend_surge(trend_data: List[Dict]) -> Dict[str, float]:
-    """급등 키워드 → 변화율 맵."""
+    """급등 키워드 → 변화율 맵.
+
+    절대 지수 하한(TREND_MIN_ABS_SCORE, 기본 20): 검색 지수의 절대값이 바닥이면
+    백분율이 아무리 커도 급등으로 치지 않는다. 예: 네이버 지수 1.54→4.57은
+    +197%지만 100점 만점에 5점 미만인 노이즈 수준의 움직임이다. score 필드가
+    없는 데이터(하위호환)는 하한 검사를 건너뛴다.
+    """
     threshold = config.TREND_SURGE_THRESHOLD
+    min_abs = getattr(config, "TREND_MIN_ABS_SCORE", 20)
     excluded = set(getattr(config, "NON_PRODUCT_TREND_KEYWORDS", []))
     result: Dict[str, float] = {}
     for t in trend_data:
@@ -130,10 +148,114 @@ def _trend_surge(trend_data: List[Dict]) -> Dict[str, float]:
         if kw in excluded:
             continue
         pct = t.get("change_pct", 0.0)
+        abs_score = t.get("score")
+        if abs_score is not None and abs_score < min_abs:
+            continue
         if pct >= threshold:
             if kw not in result or pct > result[kw]:
                 result[kw] = pct
     return result
+
+
+def _keyword_flow(
+    keyword: str, ranking_history: Optional[List[List[Dict]]]
+) -> Tuple[float, Optional[str], bool]:
+    """무신사 랭킹 내부에서 키워드 포함 상품 수의 최근 추세를 점수화한다.
+
+    검색 API와 무관한 순수 내부 지표: 랭킹(TOP N) 안에 해당 키워드를 포함한
+    상품이 늘고 있으면 실수요 확산, 줄고 있으면 하락 추세로 본다. 최근 2일
+    평균을 그 이전 최대 5일 평균과 비교한다.
+
+    Returns:
+        (score, note, is_strong_up)
+        - score: -15(급감) ~ +20(급증). 데이터 부족(4일 미만 또는 평균 3개 미만)이면 0.
+        - note: 사람이 읽을 설명 (데이터 부족 시 None).
+        - is_strong_up: 내부 근거 게이트로 인정할 만큼 뚜렷한 증가인지.
+    """
+    if not ranking_history or len(ranking_history) < 4:
+        return 0.0, None, False
+
+    daily_counts: List[int] = []
+    for day_items in ranking_history[-7:]:
+        count = sum(
+            1 for item in day_items
+            if item.get("period", "1일") == "1일" and keyword in item.get("product_name", "")
+        )
+        daily_counts.append(count)
+
+    if len(daily_counts) < 4:
+        return 0.0, None, False
+    recent = daily_counts[-2:]
+    base   = daily_counts[:-2][-5:]
+    base_avg   = sum(base) / len(base)
+    recent_avg = sum(recent) / len(recent)
+    if base_avg < 3 and recent_avg < 3:
+        return 0.0, None, False   # 표본 자체가 적어 추세 판단 불가
+
+    change = (recent_avg - base_avg) / base_avg if base_avg > 0 else 1.0
+    txt = (f"랭킹 내 '{keyword}' 상품 수 최근 2일 평균 {recent_avg:.0f}개 "
+           f"(직전 {len(base)}일 평균 {base_avg:.0f}개, {change*100:+.0f}%)")
+    if change >= 0.20:
+        return 20.0, f"📈 내부 흐름 급증 — {txt}", True
+    if change >= 0.08:
+        return 12.0, f"📈 내부 흐름 증가 — {txt}", True
+    if change <= -0.20:
+        return -15.0, f"📉 내부 흐름 급감 — {txt}", False
+    if change <= -0.08:
+        return -8.0, f"📉 내부 흐름 감소 — {txt}", False
+    return 3.0, f"내부 흐름 안정 — {txt}", False
+
+
+def _realtime_keyword_score(
+    keyword: str, realtime_keywords: Optional[List[Dict]]
+) -> Tuple[float, Optional[str], bool]:
+    """무신사 실시간 검색어 TOP30 기준 내부 검색 수요 점수.
+
+    Returns:
+        (score, note, is_rising)
+        - score: 0~15. NEW/급상승(▲3 이상) 15, 상승 10, 유지 4, 하락/미진입 0.
+        - is_rising: 내부 근거 게이트로 인정할 상승(NEW 또는 ▲)인지.
+    """
+    if not realtime_keywords:
+        return 0.0, None, False
+    norm_kw = _normalize_keyword_for_matching(keyword)
+    if not norm_kw:
+        return 0.0, None, False
+    for item in realtime_keywords:
+        norm_item = _normalize_keyword_for_matching(item.get("keyword", ""))
+        if not norm_item or (norm_item not in norm_kw and norm_kw not in norm_item):
+            continue
+        rank = item.get("rank")
+        ftype = item.get("fluctuation_type", "NONE")
+        amt = item.get("fluctuation_amount", 0) or 0
+        base_txt = f"무신사 실시간 검색어 {rank}위 ('{item.get('keyword')}')"
+        if ftype == "NEW":
+            return 15.0, f"🔥 {base_txt} 신규 진입", True
+        if ftype == "UP" and amt >= 3:
+            return 15.0, f"🔥 {base_txt} ▲{amt} 급상승", True
+        if ftype == "UP":
+            return 10.0, f"{base_txt} ▲{amt} 상승", True
+        if ftype == "NONE":
+            return 4.0, f"{base_txt} 유지", False
+        return 0.0, f"{base_txt} ▼{amt} 하락", False
+    return 0.0, None, False
+
+
+def _internal_candidates(rank_surging: Dict[str, Dict], min_products: int = 2) -> List[str]:
+    """검색 API 없이도 시그널 후보가 되도록, 관심 키워드 사전을 랭킹 급등/신규
+    상품명과 대조해 내부 후보 키워드를 뽑는다. 단일 상품 노이즈를 피하기 위해
+    min_products개 이상 매칭될 때만 후보로 올린다."""
+    dictionary = set(getattr(config, "FASHION_KEYWORDS", [])) | set(_THEME_TEMPLATES.keys())
+    excluded = set(getattr(config, "NON_PRODUCT_TREND_KEYWORDS", []))
+    candidates: List[str] = []
+    for kw in dictionary:
+        kw = kw.replace("#", "").strip()
+        if not kw or kw in excluded:
+            continue
+        matched = sum(1 for name in rank_surging if kw in name)
+        if matched >= min_products:
+            candidates.append(kw)
+    return candidates
 
 
 def _rank_surge(rank_diff_result: Dict) -> Dict[str, Dict]:
@@ -446,6 +568,8 @@ def _score(
     has_rank_match: bool = True,
     price_adjustment: float = 0.0,
     category_demand_weight: float = 1.0,
+    internal_flow_score: float = 0.0,
+    realtime_score: float = 0.0,
 ) -> Tuple[int, Dict[str, float]]:
     """지표별 기여 점수를 계산하고 (최종 점수, 지표별 breakdown)을 반환한다.
 
@@ -469,36 +593,50 @@ def _score(
             카테고리 통합("전체 베스트") 랭킹의 실제 비중으로 산출한 대분류별
             가중치(0.6~1.6, 기본 1.0) — 랭킹(rank) 점수에 곱해진다. 호출부가
             검증된 비중을 주지 않으면 1.0(중립)이라 기존 동작과 동일하다.
+        internal_flow_score: _keyword_flow()가 산출한 내부 키워드 흐름 점수
+            (-15~+20). 랭킹 내 키워드 포함 상품 수 추세 — 감소 추세면 감점.
+        realtime_score: _realtime_keyword_score()가 산출한 무신사 실시간
+            검색어 점수 (0~15).
     """
     breakdown: Dict[str, float] = {}
 
-    # 트렌드 (30점)
-    if trend_pct >= 50:   breakdown["trend"] = 30
-    elif trend_pct >= 30: breakdown["trend"] = 20
-    else:                 breakdown["trend"] = 10
+    # 트렌드 (10점, 참고 지표) — 네이버/구글 검색은 무신사/29CM 내부 흐름 확인의
+    # 보조 근거로만 사용한다 (2026-07-02 개편: 기존 30점 → 10점 축소).
+    if trend_pct >= 50:   breakdown["trend"] = 10
+    elif trend_pct >= 30: breakdown["trend"] = 7
+    elif trend_pct >= config.TREND_SURGE_THRESHOLD: breakdown["trend"] = 4
+    else:                 breakdown["trend"] = 0
 
-    # 랭킹 (25점) — 랭킹 매칭이 전혀 없으면(트렌드 단독 시그널) 최소 점수만 부여한다.
+    # 랭킹 (30점) — 내부 주 지표. 랭킹 매칭이 전혀 없으면 0점.
     if not has_rank_match:                   breakdown["rank"] = 0
-    elif is_new:                             breakdown["rank"] = 25
-    elif rank_change and rank_change >= 10:  breakdown["rank"] = 25
-    elif rank_change and rank_change >= 5:   breakdown["rank"] = 15
-    else:                                    breakdown["rank"] = 5
+    elif is_new:                             breakdown["rank"] = 30
+    elif rank_change and rank_change >= 10:  breakdown["rank"] = 30
+    elif rank_change and rank_change >= 5:   breakdown["rank"] = 20
+    else:                                    breakdown["rank"] = 8
 
     # 카테고리 momentum 가중치 — 무신사 통합("전체 베스트") 랭킹에서 실제로
     # 검증된 비중일 때만(category_demand_weight != 1.0) 랭킹 점수를 조정한다.
-    breakdown["rank"] = round(breakdown["rank"] * category_demand_weight, 1)
+    # 가중 후에도 35점을 넘지 않게 캡 — 단일 지표가 점수를 지배하지 않도록.
+    breakdown["rank"] = round(min(35.0, breakdown["rank"] * category_demand_weight), 1)
 
-    # 할인율 급등 (15점)
-    breakdown["discount_surge"] = 15 if discount_surge else 0
+    # 내부 키워드 흐름 (-15~+20점) — 랭킹 내 키워드 포함 상품 수 추세 (내부 주 지표).
+    # 감소 추세면 감점되어, 외부 검색만 튀고 내부는 빠지는 키워드를 걸러낸다.
+    breakdown["internal_flow"] = round(internal_flow_score, 1)
 
-    # 품절 (10점)
-    breakdown["soldout"] = 10 if soldout else 0
+    # 실시간 검색어 (15점) — 무신사 실시간 검색어 TOP30 진입/상승 (내부 주 지표).
+    breakdown["realtime_keyword"] = round(realtime_score, 1)
 
-    # 복수 카테고리 교차 (10점)
-    breakdown["cross_category"] = 10 if is_cross else 0
+    # 할인율 급등 (10점)
+    breakdown["discount_surge"] = 10 if discount_surge else 0
 
-    # YoY (10점) — 올해 순위가 작년보다 좋을 때
-    breakdown["yoy"] = 10 if (yoy_rank and current_rank and current_rank < yoy_rank) else 0
+    # 품절 (5점)
+    breakdown["soldout"] = 5 if soldout else 0
+
+    # 복수 카테고리 교차 (5점)
+    breakdown["cross_category"] = 5 if is_cross else 0
+
+    # YoY (5점) — 올해 순위가 작년보다 좋을 때
+    breakdown["yoy"] = 5 if (yoy_rank and current_rank and current_rank < yoy_rank) else 0
 
     # 할인 지속성 보너스 (최대 5점) — 연속 상승일이 길수록 프로모션 본격화로 판단
     breakdown["discount_streak"] = min(5, discount_streak_days) if discount_streak_days else 0
@@ -603,13 +741,27 @@ def _build_evidence_detail(
     keyword_weight: float,
     price_note: Optional[str] = None,
     category_demand_weight: float = 1.0,
+    flow_note: Optional[str] = None,
+    realtime_note: Optional[str] = None,
 ) -> List[str]:
     """'왜 이 점수인지'를 MD가 바로 이해할 수 있는 한국어 설명 목록으로 변환."""
     detail: List[str] = []
-    detail.append(f"트렌드 검색량 전주 대비 +{trend_pct:.0f}% (기여 {breakdown['trend']:.0f}점)")
+    if flow_note:
+        detail.append(f"{flow_note} (기여 {breakdown.get('internal_flow', 0):+.0f}점)")
+    if realtime_note:
+        detail.append(f"{realtime_note} (기여 {breakdown.get('realtime_keyword', 0):.0f}점)")
+    if breakdown.get("trend"):
+        detail.append(
+            f"[참고] 네이버/구글 검색량 전주 대비 +{trend_pct:.0f}% (기여 {breakdown['trend']:.0f}점 — "
+            "외부 검색 트렌드는 참고 지표로만 반영)"
+        )
+    elif trend_pct:
+        detail.append(
+            f"[참고] 네이버/구글 검색량 +{trend_pct:.0f}%는 절대 지수가 낮거나 임계 미만이라 점수 미반영"
+        )
     if not has_rank_match:
         detail.append(
-            f"랭킹 데이터에서 매칭되는 상품 없음 — 트렌드 단독 시그널이므로 랭킹 항목은 최소 점수 처리 (기여 {breakdown['rank']:.0f}점)"
+            f"랭킹 급등/신규 진입에 매칭되는 상품 없음 — 랭킹 항목 0점, 실시간 검색어/내부 흐름 근거로 생성된 시그널 (기여 {breakdown['rank']:.0f}점)"
         )
     elif is_new:
         detail.append(f"실제 랭킹 신규 진입 상품으로 확인 — 랭킹 항목 만점 (기여 {breakdown['rank']:.0f}점)")
@@ -668,7 +820,7 @@ def _build_next_checks(
         "최근 3~7일 검색량 추세가 일시 스파이크인지 지속 추세인지 트렌드 차트로 재확인",
     ]
     if not has_rank_match:
-        checks.append("랭킹 데이터에서 해당 키워드를 포함한 상품을 직접 검색 — 트렌드만 있고 랭킹 근거가 없는 시그널이므로 실제 상품 존재 여부부터 확인")
+        checks.append("랭킹 데이터에서 해당 키워드를 포함한 상품을 직접 검색 — 랭킹 급등/신규 매칭 없이 검색어/내부 흐름 근거로 생성된 시그널이므로 실제 상품 구성부터 확인")
     if discount_surge:
         checks.append("경쟁사 할인 종료 예정일 확인 — 할인 종료 후 자연 감소 가능성 점검")
     if soldout:
@@ -700,9 +852,13 @@ def detect(
     backtest_feedback: Optional[Dict[str, float]] = None,
     ranking_history: Optional[List[List[Dict]]] = None,
     category_weights: Optional[Dict[str, float]] = None,
+    realtime_keywords: Optional[List[Dict]] = None,
 ) -> List[Dict]:
     """
-    기획전 타이밍 시그널 감지.
+    기획전 타이밍 시그널 감지 (내부 데이터 우선).
+
+    시그널은 내부 근거(랭킹 매칭 / 실시간 검색어 상승 / 내부 키워드 흐름 증가)가
+    하나 이상 있어야만 생성된다. 검색 트렌드(구글/네이버)는 참고 가점(최대 10점)이다.
 
     Args:
         trend_data:       google_trends + naver_datalab 통합 데이터.
@@ -719,6 +875,9 @@ def detect(
             "전체 베스트" 랭킹의 실제 비중으로 산출한 대분류별 가중치 dict
             ({"상의": 1.2, ...}). 주어지면 랭킹 점수에 곱해진다 (기본 None —
             모든 카테고리 1.0 중립, 검증 안 된 추측으로 점수를 왜곡하지 않음).
+        realtime_keywords: collectors/musinsa_keywords.collect() 반환
+            (무신사 실시간 검색어 TOP30). 내부 검색 수요 점수(최대 15점) 및
+            내부 근거 게이트에 사용. 없으면 해당 점수는 0으로 처리.
 
     Returns:
         시그널 dict 목록 (신뢰도 점수 내림차순 정렬).
@@ -733,14 +892,24 @@ def detect(
     cross_keywords   = _cross_category(trend_surging, rank_surging)
     collected_at     = _kst_today()
 
-    if not trend_surging:
-        logger.info("기획전 시그널 없음 — 트렌드 급등 키워드 없음")
+    # 후보 키워드 = 검색 트렌드 급등 ∪ 무신사 실시간 검색어 상승 ∪ 내부 사전 매칭.
+    # 트렌드가 전혀 없어도 내부 근거만으로 시그널이 생성될 수 있다 (내부 우선 설계).
+    candidates: Dict[str, float] = dict(trend_surging)
+    for item in (realtime_keywords or []):
+        kw = (item.get("keyword") or "").strip()
+        if kw and item.get("fluctuation_type") in ("UP", "NEW"):
+            candidates.setdefault(kw, 0.0)
+    for kw in _internal_candidates(rank_surging):
+        candidates.setdefault(kw, 0.0)
+
+    if not candidates:
+        logger.info("기획전 시그널 없음 — 후보 키워드 없음 (내부/외부 모두)")
         return []
 
     signals: List[Dict] = []
     seen_keywords: set = set()
 
-    for trend_kw, trend_pct in trend_surging.items():
+    for trend_kw, trend_pct in candidates.items():
         if trend_kw in seen_keywords:
             continue
 
@@ -775,6 +944,20 @@ def detect(
         streak_days    = _discount_streak(trend_kw, ranking_history)
         price_adj, price_note = _price_competitiveness(matched_item, rank_diff_result)
 
+        # 내부 주 지표 — 키워드 흐름(랭킹 내 상품 수 추세) + 실시간 검색어
+        flow_score, flow_note, flow_strong_up = _keyword_flow(trend_kw, ranking_history)
+        rt_score, rt_note, rt_rising = _realtime_keyword_score(trend_kw, realtime_keywords)
+
+        # 내부 근거 게이트: 무신사/29CM 내부 근거가 하나도 없으면 시그널을 만들지
+        # 않는다 — 검색 트렌드(네이버/구글)는 참고 지표일 뿐 단독 트리거가 아니다.
+        has_internal_evidence = has_rank_match or rt_rising or flow_strong_up
+        if not has_internal_evidence:
+            logger.info(
+                "시그널 후보 제외 [%s] — 내부 근거 없음 (트렌드 +%.0f%%는 참고 지표)",
+                trend_kw, trend_pct,
+            )
+            continue
+
         # signal_backtest.keyword_hit_weights()는 키워드를 공백/특수문자 제거
         # 형태로 정규화해 가중치 맵의 key를 만든다("린넨 셔츠" -> "린넨셔츠"). 여기서도
         # 동일한 정규화를 적용해야 "린넨 셔츠"(공백 포함) 같은 키워드의 가중치가
@@ -799,6 +982,8 @@ def detect(
             has_rank_match=has_rank_match,
             price_adjustment=price_adj,
             category_demand_weight=category_weight,
+            internal_flow_score=flow_score,
+            realtime_score=rt_score,
         )
 
         if score < 30:
@@ -808,6 +993,10 @@ def detect(
 
         # 추가 이슈 목록
         issues: List[str] = []
+        if flow_note:
+            issues.append(flow_note)
+        if rt_note and rt_score >= 10:
+            issues.append(rt_note)
         if discount_surge:
             issues.append(f"할인율 급등 (전일 대비 +{discount_cats[main_cat]:.1f}%p)")
         if soldout:
@@ -833,6 +1022,8 @@ def detect(
         # 신뢰구간 산출 — 보강 지표 개수가 많을수록 구간을 좁힌다.
         sample_strength = sum([
             has_rank_match,
+            flow_note is not None,
+            rt_score >= 10,
             discount_surge,
             soldout,
             is_cross,
@@ -882,6 +1073,8 @@ def detect(
                 trend_pct, rank_change, is_true_new_entry, has_rank_match, breakdown,
                 seasonal_note, streak_days, keyword_weight, price_note,
                 category_demand_weight=category_weight,
+                flow_note=flow_note,
+                realtime_note=rt_note,
             ),
             "category_demand_weight": category_weight,
             "next_checks":       _build_next_checks(
@@ -898,6 +1091,10 @@ def detect(
             ),
             "discount_streak_days": streak_days,
             "seasonal_adjustment":  seasonal_adj,
+            "internal_flow_score":  flow_score,
+            "internal_flow_note":   flow_note,
+            "realtime_keyword_score": rt_score,
+            "realtime_keyword_note": rt_note,
             "backtest_keyword_weight": keyword_weight,
             "price_competitiveness_bonus": price_adj,
             "price_note": price_note,

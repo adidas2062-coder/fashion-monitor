@@ -215,6 +215,7 @@ def run(dry_run: bool = False) -> None:
     _run("무신사 전체 통합 베스트 스냅샷 저장", snapshot_store.save, "musinsa_overall_best", overall_best_tabs)
     _run("29CM 스냅샷 저장", snapshot_store.save, "cm29_rankings", cm29_data)
     _run("트렌드 스냅샷 저장", snapshot_store.save, "trends", trend_data)
+    _run("실시간 검색어 스냅샷 저장", snapshot_store.save, "musinsa_keywords", keyword_data)
     ranking_history_14d = snapshot_store.load_history("musinsa_rankings", limit=14)
     trend_history_28d = snapshot_store.load_history("trends", limit=28)
 
@@ -315,6 +316,7 @@ def run(dry_run: bool = False) -> None:
         backtest_keyword_weights,
         ranking_history_14d,
         category_weights,
+        keyword_data,   # 무신사 실시간 검색어 — 내부 근거 게이트/점수에 사용
     ) or []
 
     # 신규 모듈

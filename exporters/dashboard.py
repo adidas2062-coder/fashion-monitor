@@ -100,7 +100,8 @@ def _signal_cards(signals: List[Dict]) -> str:
         # 실제로 렌더링되지 않으면 안내와 화면이 불일치하게 된다.
         breakdown = s.get("score_breakdown") or {}
         _breakdown_labels = {
-            "trend": "트렌드", "rank": "랭킹", "discount_surge": "할인급등",
+            "trend": "검색트렌드(참고)", "rank": "랭킹", "discount_surge": "할인급등",
+            "internal_flow": "내부 키워드 흐름", "realtime_keyword": "실시간 검색어",
             "soldout": "품절", "cross_category": "교차카테고리", "yoy": "YoY",
             "discount_streak": "할인지속성", "seasonal_adjustment": "계절보정",
             "backtest_feedback": "백테스트피드백", "price_competitiveness": "가격경쟁력",
@@ -109,7 +110,7 @@ def _signal_cards(signals: List[Dict]) -> str:
             '<details class="score-breakdown"><summary>점수 산출 근거 (score_breakdown)</summary>'
             '<ul>' + "".join(
                 f"<li>{_esc(_breakdown_labels.get(k, k))}: {v:+.0f}점</li>"
-                if k in ("seasonal_adjustment", "backtest_feedback") else
+                if k in ("seasonal_adjustment", "backtest_feedback", "internal_flow") else
                 f"<li>{_esc(_breakdown_labels.get(k, k))}: {v:.0f}점</li>"
                 for k, v in breakdown.items()
             ) + '</ul></details>'
