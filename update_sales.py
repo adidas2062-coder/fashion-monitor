@@ -34,6 +34,14 @@ STATS_FILE  = os.path.join(DESKTOP_DIR, "판매 통계.xlsx")
 BACKUP_FILE = os.path.join(DESKTOP_DIR, "판매 통계 백업.xlsx")
 
 
+def copy_onedrive_safe(src, dst):
+    # OneDrive "공간 확보"로 클라우드 전용(dataless)이 된 파일은 macOS fcopyfile이
+    # EDEADLK(Errno 11)로 실패하므로, 일반 read/write 복사로 다운로드를 트리거한다
+    with open(src, "rb") as fsrc, open(dst, "wb") as fdst:
+        shutil.copyfileobj(fsrc, fdst, 1024 * 1024)
+    shutil.copystat(src, dst)
+
+
 # ── 파일 자동 탐지 ─────────────────────────────────────────────────────────────
 def find_source_files():
     import unicodedata
@@ -403,7 +411,7 @@ def main():
         sys.exit(1)
 
     print(f"\n[백업] 판매 통계.xlsx → 판매 통계 백업.xlsx")
-    shutil.copy2(STATS_FILE, BACKUP_FILE)
+    copy_onedrive_safe(STATS_FILE, BACKUP_FILE)
     print("  백업 완료")
 
     import time
