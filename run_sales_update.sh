@@ -5,6 +5,8 @@ cd "/Users/jeonjuwon/fashion-monitor" || exit 1
 
 LOG="logs/download_sales.log"
 MARKER="logs/.sales_ran_$(date '+%Y%m%d')"
+FAIL_STATE="logs/.sales_fail_$(date '+%Y%m%d')"   # 직전 실패의 오류 시그니처
+STOP_FILE="logs/.sales_stop_$(date '+%Y%m%d')"    # 같은 오류 2회 연속 → 오늘 재시도 중단
 
 # 중복 실행 방지 락 (mkdir은 원자적 — curl 대기 중 다음 분 cron이 동시 진입하는 것 방지)
 LOCKDIR="/tmp/.sales_update.lock"
@@ -12,6 +14,33 @@ if ! mkdir "$LOCKDIR" 2>/dev/null; then
     exit 0
 fi
 trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
+
+# 같은 오류 2회 연속으로 오늘 중단된 상태면 재시도하지 않음
+[ -f "$STOP_FILE" ] && exit 0
+
+# 실패 처리: 오류 설명+해결법을 슬랙으로 발송하고, 같은 오류가 2회 연속이면 오늘은 중단
+handle_failure() {
+    local stage_msg="$1"
+    local detail sig
+    detail=$(/usr/bin/python3 sales_error_report.py "$LOG" 2>/dev/null)
+    sig=$(/usr/bin/python3 sales_error_report.py "$LOG" --sig 2>/dev/null)
+    rm -f "$MARKER"
+    if [ -n "$sig" ] && [ -f "$FAIL_STATE" ] && [ "$(cat "$FAIL_STATE" 2>/dev/null)" = "$sig" ]; then
+        rm -f "$FAIL_STATE"
+        touch "$STOP_FILE"
+        /usr/bin/python3 notify_sales_done.py "실패" "$stage_msg
+같은 오류로 2회 연속 실패 — 오늘 자동 재시도를 중단합니다.
+해결 후 재실행: rm -f ~/fashion-monitor/$STOP_FILE && cd ~/fashion-monitor && bash run_sales_update.sh
+
+$detail" >> "$LOG" 2>&1
+    else
+        printf '%s' "$sig" > "$FAIL_STATE"
+        /usr/bin/python3 notify_sales_done.py "실패" "$stage_msg (다음 크론에서 1회 재시도)
+
+$detail" >> "$LOG" 2>&1
+    fi
+    exit 1
+}
 
 # 자정 넘어 실행될 가능성 대비: "오늘 실행했는지"가 아니라 "오늘 08시 이후 실행했는지"로 판단
 TODAY_8AM=$(date -j -f "%Y-%m-%d %H:%M:%S" "$(date '+%Y-%m-%d') 08:00:00" "+%s")
@@ -49,9 +78,7 @@ UPDATE_PY="$(dirname "$0")/update_sales.py"
 echo "===== $(date '+%Y-%m-%d %H:%M:%S') 판매통계 다운로드 시작 =====" >> "$LOG"
 
 if ! /usr/bin/python3 -m collectors.download_sales >> "$LOG" 2>&1; then
-    /usr/bin/python3 notify_sales_done.py "실패" "다운로드 오류 — logs/download_sales.log 확인 필요" >> "$LOG" 2>&1
-    rm -f "$MARKER"
-    exit 1
+    handle_failure "다운로드 오류"
 fi
 
 echo "===== $(date '+%Y-%m-%d %H:%M:%S') 판매 통계.xlsx 업데이트 시작 =====" >> "$LOG"
@@ -61,13 +88,10 @@ if /usr/bin/python3 "$UPDATE_PY" >> "$LOG" 2>&1; then
     if /usr/bin/python3 tests/smoke_sales_check.py >> "$LOG" 2>&1; then
         /usr/bin/python3 notify_sales_done.py "성공" "다운로드 + 판매 통계.xlsx 업데이트 완료" >> "$LOG" 2>&1
         touch "$MARKER"
+        rm -f "$FAIL_STATE"
     else
-        /usr/bin/python3 notify_sales_done.py "실패" "smoke 검증 실패 — 판매 통계.xlsx 미갱신" >> "$LOG" 2>&1
-        rm -f "$MARKER"
-        exit 1
+        handle_failure "smoke 검증 실패 — 판매 통계.xlsx 미갱신"
     fi
 else
-    /usr/bin/python3 notify_sales_done.py "실패" "update_sales.py 오류 — logs/download_sales.log 확인 필요" >> "$LOG" 2>&1
-    rm -f "$MARKER"
-    exit 1
+    handle_failure "update_sales.py 오류"
 fi
