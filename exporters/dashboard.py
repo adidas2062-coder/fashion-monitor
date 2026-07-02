@@ -57,8 +57,17 @@ def _rank_badge(change) -> str:
 def _signal_cards(signals: List[Dict]) -> str:
     if not signals:
         return '<p class="empty">감지된 시그널 없음</p>'
+
+    # 노출 상한 — 시그널 과잉(감사 결과 일평균 10건+)으로 인한 알림 피로 방지.
+    # 주의(50점) 이상만 카드로 최대 5건, 없으면 상위 3건. 나머지는 접힌 목록.
+    ordered = sorted(signals, key=lambda x: x.get("score") or 0, reverse=True)
+    card_signals = [s for s in ordered if (s.get("score") or 0) >= 50][:5]
+    if not card_signals:
+        card_signals = ordered[:3]
+    folded = [s for s in ordered if s not in card_signals]
+
     parts = []
-    for s in signals:
+    for s in card_signals:
         trend_pct = s.get("trend_pct", 0) or 0
         rank_change = s.get("rank_change")
         rank_txt = "NEW" if s.get("is_new_entry") else (f"▲{rank_change}" if rank_change else "-")
@@ -155,6 +164,24 @@ def _signal_cards(signals: List[Dict]) -> str:
           {evidence_html}
           {checks_html}
         </div>""")
+
+    if folded:
+        rows = []
+        for s in folded:
+            fscore = s.get("score") or 0
+            flevel = s.get("level") or ("🟡 주의" if fscore >= 50 else "🟢 참고")
+            first_issue = (s.get("issues") or [""])[0]
+            rows.append(
+                f'<li style="padding:4px 0;border-bottom:1px solid #eee">'
+                f'<b>{_esc(flevel)} {_esc(s.get("keyword",""))} {fscore}점</b>'
+                f' <span style="color:#888;font-size:12px">— {_esc(first_issue or s.get("theme",""))}</span></li>'
+            )
+        parts.append(
+            f'<details style="grid-column:1/-1;margin-top:4px">'
+            f'<summary style="cursor:pointer;color:#888;font-size:13px">'
+            f'그 외 시그널 {len(folded)}건 펼치기 (점수 낮은 순위 — 참고용)</summary>'
+            f'<ul style="list-style:none;padding:8px 4px 0">{"".join(rows)}</ul></details>'
+        )
     return "\n".join(parts)
 
 

@@ -169,8 +169,14 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
     def _base_args(self):
         trend_data = [{"keyword": "#린넨", "change_pct": 60}]
         rank_result = {
-            "items": [{"product_name": "린넨 셔츠", "category": "상의_전체",
-                       "rank": 3, "rank_change": 12, "discount_rate": 10}],
+            "items": [
+                {"product_name": "린넨 셔츠", "category": "상의_전체",
+                 "rank": 3, "rank_change": 12, "discount_rate": 10},
+                {"product_name": "린넨 팬츠", "category": "상의_전체",
+                 "rank": 6, "rank_change": 12, "discount_rate": 10},
+                {"product_name": "린넨 자켓", "category": "상의_전체",
+                 "rank": 9, "rank_change": 12, "discount_rate": 10},
+            ],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         return trend_data, rank_result
@@ -209,8 +215,14 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
     def test_graduated_weather_penalty_not_flat_onoff(self):
         trend_data = [{"keyword": "#후드", "change_pct": 60}]
         rank_result = {
-            "items": [{"product_name": "후드 집업", "category": "상의_전체",
-                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
+            "items": [
+                {"product_name": "후드 집업", "category": "상의_전체",
+                 "rank": 3, "rank_change": 12, "discount_rate": 0},
+                {"product_name": "후드 티셔츠", "category": "상의_전체",
+                 "rank": 6, "rank_change": 12, "discount_rate": 0},
+                {"product_name": "후드 반집업", "category": "상의_전체",
+                 "rank": 9, "rank_change": 12, "discount_rate": 0},
+            ],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         mild = timing_signal.detect(trend_data, rank_result, None, {"temp_max": 25})
@@ -238,6 +250,7 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
             "new_entries": [
                 {"product_name": "오버핏 후드티", "category": "상의_전체", "rank": 3},
                 {"product_name": "오버핏 티셔츠", "category": "상의_전체", "rank": 7},
+                {"product_name": "오버핏 셔츠", "category": "상의_전체", "rank": 11},
             ],
             "top_risers": [], "top_fallers": [],
         }
@@ -264,14 +277,18 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
         signals = timing_signal.detect([], rank_result, None, None, None, None, None, realtime)
         self.assertTrue(signals)
         signal = next(s for s in signals if "버뮤다" in s["keyword"])
-        self.assertEqual(15, signal["score_breakdown"]["realtime_keyword"])
+        self.assertEqual(20, signal["score_breakdown"]["realtime_keyword"])
 
     def test_declining_internal_flow_penalizes_score(self):
         """랭킹 내 키워드 포함 상품 수가 감소 추세면 internal_flow가 음수로 반영된다."""
         trend_data = [{"keyword": "오버핏", "change_pct": 60}]
         rank_result = {
             "items": [],
-            "new_entries": [{"product_name": "오버핏 티셔츠", "category": "상의_전체", "rank": 3}],
+            "new_entries": [
+                {"product_name": "오버핏 티셔츠", "category": "상의_전체", "rank": 3},
+                {"product_name": "오버핏 맨투맨", "category": "상의_전체", "rank": 7},
+                {"product_name": "오버핏 셔츠", "category": "상의_전체", "rank": 11},
+            ],
             "top_risers": [], "top_fallers": [],
         }
         def day(count):
@@ -296,22 +313,24 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
         signal = signals[0]
         self.assertTrue(signal["is_new_entry"])
         self.assertTrue(signal["has_rank_match"])
-        self.assertEqual(30, signal["score_breakdown"]["rank"])
+        # 강도형: 신규 진입 기본 15 + TOP10 진입 보너스 5 = 20 (매칭 1개, 개수 보너스 없음)
+        self.assertEqual(20, signal["score_breakdown"]["rank"])
 
     def test_seasonal_adjustment_varies_by_category(self):
         """동일 키워드·기온이라도 매칭된 상품의 카테고리(아우터 vs 바지)에 따라
         계절 보정값이 달라야 한다 (회귀 테스트)."""
         trend_data = [{"keyword": "니트", "change_pct": 60}]
-        outer_result = {
-            "items": [{"product_name": "니트 가디건", "category": "아우터_전체",
-                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
-            "new_entries": [], "top_risers": [], "top_fallers": [],
-        }
-        pants_result = {
-            "items": [{"product_name": "니트 팬츠", "category": "바지_전체",
-                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
-            "new_entries": [], "top_risers": [], "top_fallers": [],
-        }
+        def _three(cat, names):
+            return {
+                "items": [
+                    {"product_name": n, "category": cat,
+                     "rank": 3 + i * 3, "rank_change": 12, "discount_rate": 0}
+                    for i, n in enumerate(names)
+                ],
+                "new_entries": [], "top_risers": [], "top_fallers": [],
+            }
+        outer_result = _three("아우터_전체", ["니트 가디건", "니트 집업", "니트 코트"])
+        pants_result = _three("바지_전체", ["니트 팬츠", "니트 조거", "니트 와이드"])
         outer_signals = timing_signal.detect(trend_data, outer_result, None, {"temp_max": 30})
         pants_signals = timing_signal.detect(trend_data, pants_result, None, {"temp_max": 30})
         # 아우터는 계절 민감도 배수가 더 커서(1.2배) 바지(0.7배)보다 페널티가 크다(더 낮은 점수).
@@ -322,8 +341,14 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
         """할인율 급등은 '현재 평균 할인율이 5% 이상'이 아니라 전일 대비 +5%p 상승이어야 한다."""
         trend_data = [{"keyword": "린넨", "change_pct": 60}]
         rank_result = {
-            "items": [{"product_name": "린넨 셔츠", "category": "상의_전체",
-                       "rank": 3, "rank_change": 8, "discount_rate": 20}],
+            "items": [
+                {"product_name": "린넨 셔츠", "category": "상의_전체",
+                 "rank": 3, "rank_change": 8, "discount_rate": 20},
+                {"product_name": "린넨 팬츠", "category": "상의_전체",
+                 "rank": 6, "rank_change": 8, "discount_rate": 20},
+                {"product_name": "린넨 자켓", "category": "상의_전체",
+                 "rank": 9, "rank_change": 8, "discount_rate": 20},
+            ],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         # 어제도 이미 평균 20% 할인 중이었다면(상시 할인) 급등이 아니다.
@@ -349,8 +374,14 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
         대신 노출되어야 한다."""
         trend_data = [{"keyword": "린넨", "change_pct": 60}]
         rank_result = {
-            "items": [{"product_name": "린넨 셔츠", "category": "상의_전체",
-                       "rank": 3, "rank_change": 8, "discount_rate": 20}],
+            "items": [
+                {"product_name": "린넨 셔츠", "category": "상의_전체",
+                 "rank": 3, "rank_change": 8, "discount_rate": 20},
+                {"product_name": "린넨 팬츠", "category": "상의_전체",
+                 "rank": 6, "rank_change": 8, "discount_rate": 20},
+                {"product_name": "린넨 자켓", "category": "상의_전체",
+                 "rank": 9, "rank_change": 8, "discount_rate": 20},
+            ],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         # 히스토리 자체가 없는 경우 (None)
@@ -376,8 +407,14 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
         경고만 노출되어야 한다."""
         trend_data = [{"keyword": "데님 팬츠", "change_pct": 60}]
         rank_result = {
-            "items": [{"product_name": "데님 팬츠 와이드", "category": "바지_데님팬츠",
-                       "rank": 3, "rank_change": 8, "discount_rate": 0}],
+            "items": [
+                {"product_name": "데님 팬츠 와이드", "category": "바지_데님팬츠",
+                 "rank": 3, "rank_change": 8, "discount_rate": 0},
+                {"product_name": "데님 팬츠 스트레이트", "category": "바지_데님팬츠",
+                 "rank": 6, "rank_change": 8, "discount_rate": 0},
+                {"product_name": "데님 팬츠 크롭", "category": "바지_데님팬츠",
+                 "rank": 9, "rank_change": 8, "discount_rate": 0},
+            ],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         hot_signals = timing_signal.detect(trend_data, rank_result, None, {"temp_max": 35})
@@ -401,6 +438,10 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
             "items": [
                 {"product_name": "린넨 셔츠", "category": "상의_전체",
                  "rank": 3, "rank_change": 8, "discount_rate": 0, "price": 20000},
+                {"product_name": "린넨 팬츠", "category": "상의_전체",
+                 "rank": 6, "rank_change": 8, "discount_rate": 0, "price": 49000},
+                {"product_name": "린넨 자켓", "category": "상의_전체",
+                 "rank": 9, "rank_change": 8, "discount_rate": 0, "price": 51000},
                 {"product_name": "기타1", "category": "상의_전체", "price": 50000},
                 {"product_name": "기타2", "category": "상의_전체", "price": 55000},
                 {"product_name": "기타3", "category": "상의_전체", "price": 48000},
@@ -419,6 +460,10 @@ class TimingSignalBacktestFeedbackTest(unittest.TestCase):
             "items": [
                 {"product_name": "린넨 셔츠", "category": "상의_전체",
                  "rank": 3, "rank_change": 8, "discount_rate": 0, "price": 50000},
+                {"product_name": "린넨 팬츠", "category": "상의_전체",
+                 "rank": 6, "rank_change": 8, "discount_rate": 0, "price": 49500},
+                {"product_name": "린넨 자켓", "category": "상의_전체",
+                 "rank": 9, "rank_change": 8, "discount_rate": 0, "price": 50500},
                 {"product_name": "기타1", "category": "상의_전체", "price": 49000},
                 {"product_name": "기타2", "category": "상의_전체", "price": 51000},
                 {"product_name": "기타3", "category": "상의_전체", "price": 50000},
@@ -559,8 +604,14 @@ class TimingSignalWeatherConflictConsistencyTest(unittest.TestCase):
     def test_weather_conflict_true_when_seasonal_adjustment_negative(self):
         trend_data = [{"keyword": "#후드", "change_pct": 60}]
         rank_result = {
-            "items": [{"product_name": "후드 집업", "category": "상의_전체",
-                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
+            "items": [
+                {"product_name": "후드 집업", "category": "상의_전체",
+                 "rank": 3, "rank_change": 12, "discount_rate": 0},
+                {"product_name": "후드 티셔츠", "category": "상의_전체",
+                 "rank": 6, "rank_change": 12, "discount_rate": 0},
+                {"product_name": "후드 반집업", "category": "상의_전체",
+                 "rank": 9, "rank_change": 12, "discount_rate": 0},
+            ],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         # 25도는 _weather_conflict()(기존 on/off, 28도 기준)에서는 False지만
@@ -575,8 +626,14 @@ class TimingSignalWeatherConflictConsistencyTest(unittest.TestCase):
         """23.9도→0점, 24.0도→큰 음수로 점프하는 불연속이 없어야 한다."""
         trend_data = [{"keyword": "#패딩", "change_pct": 60}]
         rank_result = {
-            "items": [{"product_name": "패딩 자켓", "category": "아우터_전체",
-                       "rank": 3, "rank_change": 8, "discount_rate": 0}],
+            "items": [
+                {"product_name": "패딩 자켓", "category": "아우터_전체",
+                 "rank": 3, "rank_change": 12, "discount_rate": 0},
+                {"product_name": "패딩 베스트", "category": "아우터_전체",
+                 "rank": 6, "rank_change": 12, "discount_rate": 0},
+                {"product_name": "패딩 코트", "category": "아우터_전체",
+                 "rank": 9, "rank_change": 12, "discount_rate": 0},
+            ],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         just_below = timing_signal.detect(trend_data, rank_result, None, {"temp_max": 23.9})
@@ -693,8 +750,14 @@ class TimingSignalScoreRangeNamingTest(unittest.TestCase):
     def test_score_range_present_and_matches_confidence_band_alias(self):
         trend_data = [{"keyword": "#린넨", "change_pct": 45}]
         rank_result = {
-            "items": [{"product_name": "린넨 셔츠", "category": "상의_전체",
-                       "rank": 3, "rank_change": 12, "discount_rate": 0}],
+            "items": [
+                {"product_name": "린넨 셔츠", "category": "상의_전체",
+                 "rank": 3, "rank_change": 12, "discount_rate": 0},
+                {"product_name": "린넨 팬츠", "category": "상의_전체",
+                 "rank": 6, "rank_change": 12, "discount_rate": 0},
+                {"product_name": "린넨 자켓", "category": "상의_전체",
+                 "rank": 9, "rank_change": 12, "discount_rate": 0},
+            ],
             "new_entries": [], "top_risers": [], "top_fallers": [],
         }
         signals = timing_signal.detect(trend_data, rank_result)
