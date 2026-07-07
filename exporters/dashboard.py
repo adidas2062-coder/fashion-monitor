@@ -1083,7 +1083,7 @@ def generate(
 
     # 기간 × 카테고리(대분류 + 세분류) 인덱싱 — 남성
     # key 예시: "1일|상의", "주간|상의_반소매티셔츠", "월간|아우터_후드집업"
-    _MAIN_CATS = ["상의", "아우터", "바지"]
+    _MAIN_CATS = ["상의", "아우터", "바지", "컨템포러리포멀"]
     ranking_index: dict = {}
 
     def _to_row(i):
@@ -1342,6 +1342,7 @@ def generate(
       <div class="tab active" onclick="switchMainCat('상의',this)">상의</div>
       <div class="tab" onclick="switchMainCat('아우터',this)">아우터</div>
       <div class="tab" onclick="switchMainCat('바지',this)">바지</div>
+      <div class="tab" onclick="switchMainCat('컨템포러리포멀',this)">포멀</div>
     </div>
     <div id="sub-cat-tabs" class="tabs" style="margin-bottom:12px;flex-wrap:wrap"></div>
     <div id="ranking-table-area">
@@ -1562,6 +1563,7 @@ const subCats = {{
   '상의':  ['전체','반소매티셔츠','긴소매티셔츠','맨투맨스웨트','후드티셔츠','셔츠블라우스','니트스웨터','피케카라티','민소매티셔츠'],
   '아우터': ['전체','후드집업','블루종MA1','슈트블레이저','나일론코치','카디건','사파리헌팅','트러커재킷','환절기코트','플리스뽀글이','레더라이더스'],
   '바지':  ['전체','데님팬츠','트레이닝조거','슈트슬랙스','숏팬츠','코튼팬츠'],
+  '컨템포러리포멀': ['전체'],
 }};
 
 let currentPeriod = '1일';
