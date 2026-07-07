@@ -820,8 +820,8 @@ def _events_block(musinsa_evs: List[Dict], cm29_evs: List[Dict]) -> str:
     return "\n".join(parts)
 
 
-def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
-    """무신사 브랜드 랭킹 테이블."""
+def _brand_ranking_block(brand_ranks: List[Dict], group: str = "brand-rank") -> str:
+    """무신사 브랜드 랭킹 테이블. group으로 펼치기 토글 그룹을 구분(전체/포멀 공존)."""
     if not brand_ranks:
         return '<p class="empty">수집 중</p>'
 
@@ -837,7 +837,7 @@ def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
             badge = '<span style="background:#ede0ff;color:#7d3c98;padding:1px 5px;border-radius:8px;font-size:10px">NEW</span>'
         label = f'<span style="color:#888;font-size:11px">{_esc(b.get("label",""))}</span>' if b.get("label") else ""
         url = _esc(b.get("url","#"))
-        attrs = ' data-expand-group="brand-rank" style="display:none"' if hidden else ""
+        attrs = f' data-expand-group="{group}" style="display:none"' if hidden else ""
         return (
             f'<tr{attrs}><td>{b["rank"]}</td><td>{badge}</td>'
             f'<td><a href="{url}" target="_blank">{_esc(b["brand"])}</a> {label}</td></tr>'
@@ -853,7 +853,7 @@ def _brand_ranking_block(brand_ranks: List[Dict]) -> str:
     if rest:
         last_rank = 5 + len(rest)
         table += (
-            f'<button class="expand-btn" data-group="brand-rank" data-expanded="0" '
+            f'<button class="expand-btn" data-group="{group}" data-expanded="0" '
             f'data-more-text="▼ {last_rank}위까지 펼치기" onclick="toggleSimpleExpand(this)">'
             f'▼ {last_rank}위까지 펼치기</button>'
         )
@@ -1022,6 +1022,7 @@ def generate(
     cm29_data: Optional[List[Dict]] = None,
     overall_data: Optional[List[Dict]] = None,
     brand_ranks: Optional[List[Dict]] = None,
+    brand_ranks_formal: Optional[List[Dict]] = None,
     musinsa_evs: Optional[List[Dict]] = None,
     cm29_evs: Optional[List[Dict]] = None,
     mat_color: Optional[Dict] = None,
@@ -1083,7 +1084,7 @@ def generate(
 
     # 기간 × 카테고리(대분류 + 세분류) 인덱싱 — 남성
     # key 예시: "1일|상의", "주간|상의_반소매티셔츠", "월간|아우터_후드집업"
-    _MAIN_CATS = ["상의", "아우터", "바지", "컨템포러리포멀"]
+    _MAIN_CATS = ["상의", "아우터", "바지"]
     ranking_index: dict = {}
 
     def _to_row(i):
@@ -1342,7 +1343,6 @@ def generate(
       <div class="tab active" onclick="switchMainCat('상의',this)">상의</div>
       <div class="tab" onclick="switchMainCat('아우터',this)">아우터</div>
       <div class="tab" onclick="switchMainCat('바지',this)">바지</div>
-      <div class="tab" onclick="switchMainCat('컨템포러리포멀',this)">포멀</div>
     </div>
     <div id="sub-cat-tabs" class="tabs" style="margin-bottom:12px;flex-wrap:wrap"></div>
     <div id="ranking-table-area">
@@ -1458,7 +1458,12 @@ def generate(
     <div class="col-2">
       <div>
         <h3 class="sub">🏆 무신사 브랜드 TOP 15</h3>
-        {_brand_ranking_block(brand_ranks or [])}
+        <div class="tabs" id="brand-cat-tabs" style="margin-bottom:8px">
+          <div class="tab active" onclick="switchBrandCat('전체',this)">전체</div>
+          <div class="tab" onclick="switchBrandCat('포멀',this)">포멀</div>
+        </div>
+        <div id="brand-rank-all">{_brand_ranking_block(brand_ranks or [])}</div>
+        <div id="brand-rank-formal" style="display:none">{_brand_ranking_block(brand_ranks_formal or [], group="brand-rank-formal")}</div>
       </div>
       <div>
         <h3 class="sub">📈 카테고리 성장률 (주간)</h3>
@@ -1563,7 +1568,6 @@ const subCats = {{
   '상의':  ['전체','반소매티셔츠','긴소매티셔츠','맨투맨스웨트','후드티셔츠','셔츠블라우스','니트스웨터','피케카라티','민소매티셔츠'],
   '아우터': ['전체','후드집업','블루종MA1','슈트블레이저','나일론코치','카디건','사파리헌팅','트러커재킷','환절기코트','플리스뽀글이','레더라이더스'],
   '바지':  ['전체','데님팬츠','트레이닝조거','슈트슬랙스','숏팬츠','코튼팬츠'],
-  '컨템포러리포멀': ['전체'],
 }};
 
 let currentPeriod = '1일';
@@ -1656,6 +1660,14 @@ function switchSubCat(sub, el) {{
   document.querySelectorAll('#sub-cat-tabs .tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   renderRankingTable();
+}}
+
+// 브랜드 랭킹 전체/포멀 전환
+function switchBrandCat(cat, el) {{
+  document.querySelectorAll('#brand-cat-tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('brand-rank-all').style.display = cat === '전체' ? '' : 'none';
+  document.getElementById('brand-rank-formal').style.display = cat === '포멀' ? '' : 'none';
 }}
 
 // 세분류 탭 스타일
