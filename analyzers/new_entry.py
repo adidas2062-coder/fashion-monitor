@@ -19,6 +19,16 @@ import config
 
 logger = logging.getLogger(__name__)
 
+# Scrapling이 설치돼 있으면(.venv 등) 실제 브라우저 지문으로 요청해
+# 무신사 봇 차단(429)을 완화한다. 없으면(시스템 python cron 등) urllib로 폴백해
+# 기존 동작을 그대로 유지한다 — 어느 환경에서도 import 실패로 죽지 않게 한다.
+try:
+    from scrapling.fetchers import Fetcher as _ScraplingFetcher
+    _HAS_SCRAPLING = True
+except Exception:  # pragma: no cover - 설치 안 된 환경
+    _ScraplingFetcher = None
+    _HAS_SCRAPLING = False
+
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -45,13 +55,36 @@ _FIT_KEYWORDS = {
 
 # ── 내부 유틸 ─────────────────────────────────────────────────────────────────
 
+def _fetch_html_scrapling(url: str) -> Optional[str]:
+    """Scrapling Fetcher로 HTML 반환. 실패 시 None (호출부가 urllib로 폴백)."""
+    try:
+        page = _ScraplingFetcher.get(url, stealthy_headers=True, timeout=15)
+    except Exception as exc:
+        logger.warning("Scrapling 요청 실패 %s: %s", url, exc)
+        return None
+    if getattr(page, "status", 200) >= 400:
+        logger.warning("Scrapling 응답 상태 %s: %s", page.status, url)
+        return None
+    return getattr(page, "body", None) or getattr(page, "html_content", None)
+
+
+def _fetch_html_urllib(url: str) -> Optional[str]:
+    """urllib로 HTML 반환. 실패 시 None."""
+    req = urllib.request.Request(url, headers=_HEADERS)
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return resp.read().decode("utf-8", errors="replace")
+
+
 def _fetch_html(url: str) -> Optional[str]:
-    """상세 페이지 HTML 반환. 실패 시 None."""
+    """상세 페이지 HTML 반환. Scrapling 우선, 실패 시 urllib 폴백. 최종 실패 시 None."""
     for attempt in range(1, _RETRY_MAX + 1):
         try:
-            req = urllib.request.Request(url, headers=_HEADERS)
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                return resp.read().decode("utf-8", errors="replace")
+            if _HAS_SCRAPLING:
+                html = _fetch_html_scrapling(url)
+                if html is not None:
+                    return html
+                # Scrapling이 None이면 같은 시도 안에서 urllib로 폴백
+            return _fetch_html_urllib(url)
         except Exception as exc:
             logger.warning("상세 페이지 요청 실패 (시도 %d/%d) %s: %s", attempt, _RETRY_MAX, url, exc)
             if attempt < _RETRY_MAX:

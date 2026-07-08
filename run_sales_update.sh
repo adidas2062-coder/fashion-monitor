@@ -3,6 +3,10 @@
 # 8:50~9:10 사이 매분 cron이 깨워보고, 노트북이 켜져 네트워크가 잡히는 첫 순간 1회만 실행
 cd "/Users/jeonjuwon/fashion-monitor" || exit 1
 
+# 프로젝트 venv python 사용 (Scrapling 등 포함). 없으면 시스템 python으로 폴백.
+PY="/Users/jeonjuwon/fashion-monitor/.venv/bin/python"
+[ -x "$PY" ] || PY="/usr/bin/python3"
+
 LOG="logs/download_sales.log"
 MARKER="logs/.sales_ran_$(date '+%Y%m%d')"
 FAIL_STATE="logs/.sales_fail_$(date '+%Y%m%d')"   # 직전 실패의 오류 시그니처
@@ -22,20 +26,20 @@ trap 'rmdir "$LOCKDIR" 2>/dev/null' EXIT
 handle_failure() {
     local stage_msg="$1"
     local detail sig
-    detail=$(/usr/bin/python3 sales_error_report.py "$LOG" 2>/dev/null)
-    sig=$(/usr/bin/python3 sales_error_report.py "$LOG" --sig 2>/dev/null)
+    detail=$("$PY" sales_error_report.py "$LOG" 2>/dev/null)
+    sig=$("$PY" sales_error_report.py "$LOG" --sig 2>/dev/null)
     rm -f "$MARKER"
     if [ -n "$sig" ] && [ -f "$FAIL_STATE" ] && [ "$(cat "$FAIL_STATE" 2>/dev/null)" = "$sig" ]; then
         rm -f "$FAIL_STATE"
         touch "$STOP_FILE"
-        /usr/bin/python3 notify_sales_done.py "실패" "$stage_msg
+        "$PY" notify_sales_done.py "실패" "$stage_msg
 같은 오류로 2회 연속 실패 — 오늘 자동 재시도를 중단합니다.
 해결 후 재실행: rm -f ~/fashion-monitor/$STOP_FILE && cd ~/fashion-monitor && bash run_sales_update.sh
 
 $detail" >> "$LOG" 2>&1
     else
         printf '%s' "$sig" > "$FAIL_STATE"
-        /usr/bin/python3 notify_sales_done.py "실패" "$stage_msg (다음 크론에서 1회 재시도)
+        "$PY" notify_sales_done.py "실패" "$stage_msg (다음 크론에서 1회 재시도)
 
 $detail" >> "$LOG" 2>&1
     fi
@@ -77,16 +81,16 @@ UPDATE_PY="$(dirname "$0")/update_sales.py"
 
 echo "===== $(date '+%Y-%m-%d %H:%M:%S') 판매통계 다운로드 시작 =====" >> "$LOG"
 
-if ! /usr/bin/python3 -m collectors.download_sales >> "$LOG" 2>&1; then
+if ! "$PY" -m collectors.download_sales >> "$LOG" 2>&1; then
     handle_failure "다운로드 오류"
 fi
 
 echo "===== $(date '+%Y-%m-%d %H:%M:%S') 판매 통계.xlsx 업데이트 시작 =====" >> "$LOG"
 
 # Excel이 열려있어도 기존 인스턴스 재사용으로 처리 — 잠금 체크 불필요
-if /usr/bin/python3 "$UPDATE_PY" >> "$LOG" 2>&1; then
-    if /usr/bin/python3 tests/smoke_sales_check.py >> "$LOG" 2>&1; then
-        /usr/bin/python3 notify_sales_done.py "성공" "다운로드 + 판매 통계.xlsx 업데이트 완료" >> "$LOG" 2>&1
+if "$PY" "$UPDATE_PY" >> "$LOG" 2>&1; then
+    if "$PY" tests/smoke_sales_check.py >> "$LOG" 2>&1; then
+        "$PY" notify_sales_done.py "성공" "다운로드 + 판매 통계.xlsx 업데이트 완료" >> "$LOG" 2>&1
         touch "$MARKER"
         rm -f "$FAIL_STATE"
     else

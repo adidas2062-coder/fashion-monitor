@@ -1,0 +1,16 @@
+# 패션 모니터 의존성 — .venv 에 설치해 사용
+#   python3 -m venv .venv && .venv/bin/pip install -U pip && .venv/bin/pip install -r requirements.txt
+#   playwright 브라우저: .venv/bin/playwright install chromium
+scrapling==0.2.99
+requests
+notion-client
+pytrends
+instaloader
+openpyxl
+pandas
+reportlab
+fastapi
+uvicorn
+pyotp
+playwright
+pytest

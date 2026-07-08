@@ -611,9 +611,23 @@ open data/dashboard.html
 
 ## 의존성 설치
 
+프로젝트 전용 **venv**(`.venv/`)에 설치해 사용한다. 시스템 python의 pip가 너무 낡아
+(pyobjc 등) 네이티브 빌드가 실패하므로 venv에서 pip를 최신화한 뒤 설치한다.
+
 ```bash
-pip install requests beautifulsoup4 pytrends instaloader notion-client matplotlib reportlab
+cd ~/fashion-monitor
+python3 -m venv .venv
+.venv/bin/pip install -U pip wheel
+.venv/bin/pip install -r requirements.txt
+.venv/bin/playwright install chromium        # 판매통계·기획전 크롤링용 브라우저
 ```
+
+- `collectors/musinsa.py`는 무신사 **내부 JSON API**를 쓰므로 별도 HTML 파서 불필요.
+- `analyzers/new_entry.py`의 상세페이지 HTML 수집은 **Scrapling** 우선(실제 브라우저
+  지문으로 429·봇차단 완화), 미설치 환경에서는 자동으로 urllib 폴백한다.
+- 실행 스크립트(`run_fashion_monitor.sh`/`run_sales_update.sh`)는 `.venv/bin/python`을
+  사용하고, venv가 없으면 `/usr/bin/python3`으로 폴백한다(`PY` 변수). crontab은
+  bash 스크립트를 호출하므로 별도 수정 불필요.
 
 ---
 
