@@ -781,14 +781,21 @@ def _events_block(musinsa_evs: List[Dict], cm29_evs: List[Dict]) -> str:
     """기획전/에디션 섹션 HTML."""
     parts = ['<div>']
 
-    # 무신사 기획전
+    # 무신사 기획전 — 기획전 섹션은 모두 무신사 세일 페이지에 노출되므로,
+    # 개별 랜딩 URL이 없으면 세일 페이지로 링크(수집기가 url을 채우면 그걸 우선 사용)
+    _MUSINSA_SALE_URL = "https://www.musinsa.com/main/musinsa/sale"
     parts.append('<div><h3 style="font-size:13px;color:#555;margin-bottom:8px">🛒 무신사 기획전</h3>')
     if musinsa_evs:
         for e in musinsa_evs[:6]:
             badge = _esc(e.get("period") or f'{e["item_count"]}개 상품')
+            url   = e.get("url") or _MUSINSA_SALE_URL
+            title_html = (
+                f'<a href="{_esc(url)}" target="_blank" style="color:inherit;text-decoration:none">'
+                f'{_esc(e["title"])}</a>'
+            )
             parts.append(
                 f'<div class="event-item">'
-                f'<span class="event-title">{_esc(e["title"])}</span>'
+                f'<span class="event-title">{title_html}</span>'
                 f'<span class="event-badge">{badge}</span>'
                 f'</div>'
             )
