@@ -1295,7 +1295,7 @@ def generate(
 <header>
   <div class="header-inner">
     <h1>패션 MD 마켓 인텔리전스</h1>
-    <span class="meta">공개 데이터 기반 · 마지막 업데이트: {now_str}</span>
+    <span class="meta">공개 데이터 기반 · 마지막 업데이트: {now_str}<span id="gc-vc" title="오늘-전체 방문자" style="margin-left:8px;opacity:.5;font-variant-numeric:tabular-nums;"></span></span>
   </div>
 </header>
 <div class="container">
@@ -1816,6 +1816,27 @@ document.querySelectorAll('.nav-item[href^="#"]').forEach(link => {{
 </script>
 </body>
 </html>"""
+
+    # 방문자 수 위젯(GoatCounter counter API) — 헤더 오른쪽에 "오늘-전체" 숫자 표시.
+    # KST 기준 오늘 날짜로 조회하며, 실패해도 대시보드에는 영향 없음(빈 값 유지).
+    _visitor_js = """
+<script>
+(function () {
+  var el = document.getElementById('gc-vc');
+  if (!el) return;
+  var base = 'https://fashionmonitor.goatcounter.com/counter/TOTAL.json';
+  var ds = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+  function n(t) { try { var o = JSON.parse(t); return o.count || o.count_unique || '0'; } catch (e) { return '?'; } }
+  Promise.all([
+    fetch(base).then(function (r) { return r.text(); }),
+    fetch(base + '?start=' + ds + '&end=' + ds).then(function (r) { return r.text(); })
+  ]).then(function (a) {
+    el.textContent = n(a[1]) + '-' + n(a[0]);
+  }).catch(function () {});
+})();
+</script>
+"""
+    html = html.replace("</body>", _visitor_js + "</body>", 1)
 
     html = "\n".join(line.rstrip() for line in html.splitlines()) + "\n"
     path = config.DASHBOARD_OUTPUT_PATH
