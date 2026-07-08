@@ -1,0 +1,483 @@
+{
+ "meta": {
+  "result": "SUCCESS",
+  "errorCode": "",
+  "message": "성공적으로 처리하였습니다."
+ },
+ "data": {
+  "basic": [
+   {
+    "no": 7527841,
+    "type": "basic",
+    "displayType": "COLOR_CHIP",
+    "name": "C",
+    "standardOptionNo": 1,
+    "sequence": 0,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "optionNo": 7527841,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "sequence": 0,
+      "standardOptionValueNo": 6,
+      "color": {
+       "colorCode": "2",
+       "colorType": "MUSINSA"
+      },
+      "isDeleted": false,
+      "imageUrl": ""
+     }
+    ]
+   },
+   {
+    "no": 7527842,
+    "type": "basic",
+    "displayType": "DROPDOWN",
+    "name": "S",
+    "standardOptionNo": 3,
+    "sequence": 1,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928903,
+      "optionNo": 7527842,
+      "name": "85",
+      "code": "85",
+      "sequence": 0,
+      "standardOptionValueNo": null,
+      "color": null,
+      "isDeleted": false,
+      "imageUrl": ""
+     },
+     {
+      "no": 16928904,
+      "optionNo": 7527842,
+      "name": "90",
+      "code": "90",
+      "sequence": 1,
+      "standardOptionValueNo": null,
+      "color": null,
+      "isDeleted": false,
+      "imageUrl": ""
+     },
+     {
+      "no": 16928905,
+      "optionNo": 7527842,
+      "name": "92",
+      "code": "92",
+      "sequence": 2,
+      "standardOptionValueNo": null,
+      "color": null,
+      "isDeleted": false,
+      "imageUrl": ""
+     },
+     {
+      "no": 16928906,
+      "optionNo": 7527842,
+      "name": "95",
+      "code": "95",
+      "sequence": 3,
+      "standardOptionValueNo": null,
+      "color": null,
+      "isDeleted": false,
+      "imageUrl": ""
+     },
+     {
+      "no": 16928907,
+      "optionNo": 7527842,
+      "name": "100",
+      "code": "100",
+      "sequence": 4,
+      "standardOptionValueNo": null,
+      "color": null,
+      "isDeleted": false,
+      "imageUrl": ""
+     },
+     {
+      "no": 16928908,
+      "optionNo": 7527842,
+      "name": "105",
+      "code": "105",
+      "sequence": 5,
+      "standardOptionValueNo": null,
+      "color": null,
+      "isDeleted": false,
+      "imageUrl": ""
+     },
+     {
+      "no": 16928909,
+      "optionNo": 7527842,
+      "name": "110",
+      "code": "110",
+      "sequence": 6,
+      "standardOptionValueNo": null,
+      "color": null,
+      "isDeleted": false,
+      "imageUrl": ""
+     },
+     {
+      "no": 16928910,
+      "optionNo": 7527842,
+      "name": "115",
+      "code": "115",
+      "sequence": 7,
+      "standardOptionValueNo": null,
+      "color": null,
+      "isDeleted": false,
+      "imageUrl": ""
+     },
+     {
+      "no": 16928911,
+      "optionNo": 7527842,
+      "name": "120",
+      "code": "120",
+      "sequence": 8,
+      "standardOptionValueNo": null,
+      "color": null,
+      "isDeleted": false,
+      "imageUrl": ""
+     }
+    ]
+   }
+  ],
+  "extra": [],
+  "optionItems": [
+   {
+    "no": 21077861,
+    "goodsNo": 4693117,
+    "optionValueNos": [
+     16928902,
+     16928903
+    ],
+    "managedCode": "BLK0_BLACK^85",
+    "price": 0,
+    "activated": true,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "optionNo": 7527841,
+      "optionName": "C",
+      "imageUrl": ""
+     },
+     {
+      "no": 16928903,
+      "name": "85",
+      "code": "85",
+      "optionNo": 7527842,
+      "optionName": "S",
+      "imageUrl": ""
+     }
+    ],
+    "colors": [
+     {
+      "optionItemNo": 21077861,
+      "colorCode": "2",
+      "colorType": "MUSINSA"
+     }
+    ]
+   },
+   {
+    "no": 21077862,
+    "goodsNo": 4693117,
+    "optionValueNos": [
+     16928902,
+     16928904
+    ],
+    "managedCode": "BLK0_BLACK^90",
+    "price": 0,
+    "activated": true,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "optionNo": 7527841,
+      "optionName": "C",
+      "imageUrl": ""
+     },
+     {
+      "no": 16928904,
+      "name": "90",
+      "code": "90",
+      "optionNo": 7527842,
+      "optionName": "S",
+      "imageUrl": ""
+     }
+    ],
+    "colors": [
+     {
+      "optionItemNo": 21077862,
+      "colorCode": "2",
+      "colorType": "MUSINSA"
+     }
+    ]
+   },
+   {
+    "no": 21077863,
+    "goodsNo": 4693117,
+    "optionValueNos": [
+     16928902,
+     16928905
+    ],
+    "managedCode": "BLK0_BLACK^92",
+    "price": 0,
+    "activated": true,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "optionNo": 7527841,
+      "optionName": "C",
+      "imageUrl": ""
+     },
+     {
+      "no": 16928905,
+      "name": "92",
+      "code": "92",
+      "optionNo": 7527842,
+      "optionName": "S",
+      "imageUrl": ""
+     }
+    ],
+    "colors": [
+     {
+      "optionItemNo": 21077863,
+      "colorCode": "2",
+      "colorType": "MUSINSA"
+     }
+    ]
+   },
+   {
+    "no": 21077864,
+    "goodsNo": 4693117,
+    "optionValueNos": [
+     16928902,
+     16928906
+    ],
+    "managedCode": "BLK0_BLACK^95",
+    "price": 0,
+    "activated": true,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "optionNo": 7527841,
+      "optionName": "C",
+      "imageUrl": ""
+     },
+     {
+      "no": 16928906,
+      "name": "95",
+      "code": "95",
+      "optionNo": 7527842,
+      "optionName": "S",
+      "imageUrl": ""
+     }
+    ],
+    "colors": [
+     {
+      "optionItemNo": 21077864,
+      "colorCode": "2",
+      "colorType": "MUSINSA"
+     }
+    ]
+   },
+   {
+    "no": 21077865,
+    "goodsNo": 4693117,
+    "optionValueNos": [
+     16928902,
+     16928907
+    ],
+    "managedCode": "BLK0_BLACK^100",
+    "price": 0,
+    "activated": true,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "optionNo": 7527841,
+      "optionName": "C",
+      "imageUrl": ""
+     },
+     {
+      "no": 16928907,
+      "name": "100",
+      "code": "100",
+      "optionNo": 7527842,
+      "optionName": "S",
+      "imageUrl": ""
+     }
+    ],
+    "colors": [
+     {
+      "optionItemNo": 21077865,
+      "colorCode": "2",
+      "colorType": "MUSINSA"
+     }
+    ]
+   },
+   {
+    "no": 21077866,
+    "goodsNo": 4693117,
+    "optionValueNos": [
+     16928902,
+     16928908
+    ],
+    "managedCode": "BLK0_BLACK^105",
+    "price": 0,
+    "activated": true,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "optionNo": 7527841,
+      "optionName": "C",
+      "imageUrl": ""
+     },
+     {
+      "no": 16928908,
+      "name": "105",
+      "code": "105",
+      "optionNo": 7527842,
+      "optionName": "S",
+      "imageUrl": ""
+     }
+    ],
+    "colors": [
+     {
+      "optionItemNo": 21077866,
+      "colorCode": "2",
+      "colorType": "MUSINSA"
+     }
+    ]
+   },
+   {
+    "no": 21077867,
+    "goodsNo": 4693117,
+    "optionValueNos": [
+     16928902,
+     16928909
+    ],
+    "managedCode": "BLK0_BLACK^110",
+    "price": 0,
+    "activated": true,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "optionNo": 7527841,
+      "optionName": "C",
+      "imageUrl": ""
+     },
+     {
+      "no": 16928909,
+      "name": "110",
+      "code": "110",
+      "optionNo": 7527842,
+      "optionName": "S",
+      "imageUrl": ""
+     }
+    ],
+    "colors": [
+     {
+      "optionItemNo": 21077867,
+      "colorCode": "2",
+      "colorType": "MUSINSA"
+     }
+    ]
+   },
+   {
+    "no": 21077868,
+    "goodsNo": 4693117,
+    "optionValueNos": [
+     16928902,
+     16928910
+    ],
+    "managedCode": "BLK0_BLACK^115",
+    "price": 0,
+    "activated": true,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "optionNo": 7527841,
+      "optionName": "C",
+      "imageUrl": ""
+     },
+     {
+      "no": 16928910,
+      "name": "115",
+      "code": "115",
+      "optionNo": 7527842,
+      "optionName": "S",
+      "imageUrl": ""
+     }
+    ],
+    "colors": [
+     {
+      "optionItemNo": 21077868,
+      "colorCode": "2",
+      "colorType": "MUSINSA"
+     }
+    ]
+   },
+   {
+    "no": 21077869,
+    "goodsNo": 4693117,
+    "optionValueNos": [
+     16928902,
+     16928911
+    ],
+    "managedCode": "BLK0_BLACK^120",
+    "price": 0,
+    "activated": true,
+    "isDeleted": false,
+    "optionValues": [
+     {
+      "no": 16928902,
+      "name": "BLK0_BLACK",
+      "code": "BLK0_BLACK",
+      "optionNo": 7527841,
+      "optionName": "C",
+      "imageUrl": ""
+     },
+     {
+      "no": 16928911,
+      "name": "120",
+      "code": "120",
+      "optionNo": 7527842,
+      "optionName": "S",
+      "imageUrl": ""
+     }
+    ],
+    "colors": [
+     {
+      "optionItemNo": 21077869,
+      "colorCode": "2",
+      "colorType": "MUSINSA"
+     }
+    ]
+   }
+  ]
+ },
+ "error": null
+}
