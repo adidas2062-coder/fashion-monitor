@@ -1022,7 +1022,6 @@ def generate(
     cm29_data: Optional[List[Dict]] = None,
     overall_data: Optional[List[Dict]] = None,
     brand_ranks: Optional[List[Dict]] = None,
-    brand_ranks_formal: Optional[List[Dict]] = None,
     musinsa_evs: Optional[List[Dict]] = None,
     cm29_evs: Optional[List[Dict]] = None,
     mat_color: Optional[Dict] = None,
@@ -1038,6 +1037,7 @@ def generate(
     top_all: Optional[List[Dict]] = None,
     magazine_trend: Optional[Dict] = None,
     soldout_trend: Optional[List[Dict]] = None,
+    brand_ranks_formal: Optional[List[Dict]] = None,
 ) -> str:
     """
     대시보드 HTML 생성 후 파일 저장.
@@ -1439,7 +1439,7 @@ def generate(
   <details id="magazine" class="section" open>
     <summary>📰 무신사 매거진 트렌드</summary>
     <div class="detail-body">
-    {_magazine_block(magazine_trend or {{}})}
+    {_magazine_block(magazine_trend or dict())}
     </div>
   </details>
 
