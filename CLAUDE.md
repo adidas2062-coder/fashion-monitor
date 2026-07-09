@@ -2,7 +2,7 @@
 
 ## 프로젝트 개요
 온라인 패션 MD를 위한 시장 트렌드 자동 수집 및 리포팅 시스템.
-매일 오전 10시 cron job으로 실행되며, 노션 DB 누적 저장 + HTML 대시보드 자동 생성.
+매일 오전 9시(8:50~9:10 윈도우) cron job으로 실행되며, 노션 DB 누적 저장 + HTML 대시보드 자동 생성.
 
 ---
 
@@ -411,7 +411,7 @@ limit=3, backtest_stats=None)` — 기존 시그니처와 반환 키(`title`/`ac
 
 **발송 내용 (일일 요약)**:
 ```
-[패션 모니터] 06.02 오전 10시
+[패션 모니터] 06.02 오전 9시
 
 📈 오늘의 급등 키워드
   구글: 린넨셔츠 +42%
@@ -437,7 +437,7 @@ limit=3, backtest_stats=None)` — 기존 시그니처와 반환 키(`title`/`ac
 
 ## 주간 리포트 (`exporters/weekly_report.py`)
 
-**실행 조건**: 매주 월요일 오전 10시 (main.py에서 요일 체크)
+**실행 조건**: 매주 월요일 오전 9시 (main.py에서 요일 체크)
 
 **생성 파일**: `data/reports/weekly_YYYYMMDD.pdf`
 
@@ -596,10 +596,17 @@ cd ~/fashion-monitor
 python main.py
 ```
 
-### cron job 설정 (매일 오전 10시)
+### cron job 설정 (매일 오전 9시, 8:50~9:10 윈도우)
+노트북 기반이라 정각 1회가 아니라 8:50~9:10 사이 매분 깨워보고, 네트워크가
+잡히는 첫 순간 1회만 실행한다(스크립트 내부 marker+lock으로 중복 방지, `caffeinate`로
+실행 중 잠들지 않게). 실제 crontab:
 ```bash
 # crontab -e 에 추가
-0 10 * * * cd ~/fashion-monitor && /usr/bin/python3 main.py >> logs/cron.log 2>&1
+50-59 8 * * * /usr/bin/caffeinate -i /bin/bash ~/fashion-monitor/run_fashion_monitor.sh
+ 0-10 9 * * * /usr/bin/caffeinate -i /bin/bash ~/fashion-monitor/run_fashion_monitor.sh
+# 매출 업데이트(평일만)
+50-59 8 * * 1-5 /usr/bin/caffeinate -i /bin/bash ~/fashion-monitor/run_sales_update.sh
+ 0-10 9 * * 1-5 /usr/bin/caffeinate -i /bin/bash ~/fashion-monitor/run_sales_update.sh
 ```
 
 ### 대시보드 열기
