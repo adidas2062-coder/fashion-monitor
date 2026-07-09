@@ -504,8 +504,25 @@ def _new_entry_cards(
     for item in new_entries[:6]:
         price = f"{item.get('price', 0):,}"
         fit   = item.get("fit_type") or "-"
+        material = item.get("material") or ""
+        colors = item.get("colors") or []
         rating = item.get("rating") or "-"
         reviews = item.get("review_count") or 0
+
+        # 소재·색상 — 데이터가 있을 때만 태그로 노출(없으면 조용히 생략)
+        detail_html = ""
+        if material:
+            detail_html += (
+                f'<span class="issue-tag" style="margin:2px;background:#fff3e0;'
+                f'color:#e65100;border-color:#ffb74d">🧵 {_esc(material)}</span>'
+            )
+        for c in colors[:5]:
+            detail_html += (
+                f'<span class="issue-tag" style="margin:2px;background:#e3f2fd;'
+                f'color:#1565c0;border-color:#42a5f5">{_esc(c)}</span>'
+            )
+        if detail_html:
+            detail_html = f'<p style="margin-top:4px">{detail_html}</p>'
 
         review = review_by_url.get(item.get("url"))
         review_html = ""
@@ -524,6 +541,7 @@ def _new_entry_cards(
           <h4><a href="{_esc(item.get('url','#'))}" target="_blank">{_esc(item.get('product_name',''))}</a></h4>
           <p class="brand">{_esc(item.get('brand',''))}</p>
           <p>{price}원 | 핏: {_esc(fit)}</p>
+          {detail_html}
           <p>★ {rating} ({reviews:,}리뷰)</p>
           {review_html}
         </div>""")
