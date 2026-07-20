@@ -2,11 +2,13 @@
 구글 트렌드 수집기.
 
 두 가지 데이터를 수집한다:
-  1. 패션 키워드별 관심도 점수 (pytrends interest_over_time) — 주요 경로
+  1. 패션 키워드별 관심도 점수 (trendspy interest_over_time) — 주요 경로
   2. 한국 실시간 트렌딩 키워드 (Google Trends RSS) — 폴백 및 보완 데이터
 
-pytrends는 네트워크 환경(IP 평판·쿠키 유무)에 따라 400 에러가 발생할 수 있다.
-이 경우 해당 수집을 스킵하고 RSs 트렌딩 데이터만 반환한다.
+관심도 수집은 `trendspy`를 사용한다. 기존 `pytrends`(4.9.2)는 구글의 내부
+Trends API 변경으로 build_payload 단계에서 400을 반환해 동작하지 않으며,
+urllib3 v2와도 비호환(method_whitelist)이라 폐기했다. trendspy 미설치·실패
+시 해당 수집을 스킵하고 RSS 트렌딩 데이터만 반환한다.
 """
 
 import logging
@@ -16,8 +18,6 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-
-import requests
 
 import config
 
@@ -35,8 +35,7 @@ _HEADERS = {
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8",
 }
 
-_PYTRENDS_COOKIE_URL = "https://trends.google.com/trending?geo=KR"
-_CHUNK_SIZE = 5          # pytrends 키워드 동시 요청 한도
+_CHUNK_SIZE = 5          # 구글 트렌드 정규화 비교 한도(요청당 최대 5개)
 _RETRY_MAX = 3
 _RETRY_DELAY = 5.0
 
@@ -48,20 +47,19 @@ def _kst_today() -> str:
     from datetime import datetime, timezone, timedelta
     return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
 
-def _make_session() -> requests.Session:
-    """Google Trends NID 쿠키를 획득한 requests 세션 반환."""
-    session = requests.Session()
-    session.headers.update(_HEADERS)
+
+def _make_client():
+    """trendspy Trends 클라이언트 생성. 미설치 시 None."""
     try:
-        session.get(_PYTRENDS_COOKIE_URL, timeout=10)
-        logger.debug("Google Trends 쿠키 획득 완료: %s", list(session.cookies.keys()))
-    except Exception as exc:
-        logger.warning("쿠키 획득 실패 (계속 진행): %s", exc)
-    return session
+        from trendspy import Trends
+    except ImportError:
+        logger.warning("trendspy 미설치 — 구글 트렌드 키워드 관심도 수집 스킵")
+        return None
+    return Trends(language="ko", tzs=540, request_delay=config.REQUEST_DELAY)
 
 
 def _fetch_interest_chunk(
-    session: requests.Session,
+    client,
     keywords: List[str],
     timeframe: str,
 ) -> Optional[Dict[str, float]]:
@@ -69,22 +67,17 @@ def _fetch_interest_chunk(
     키워드 청크 하나의 관심도 점수를 반환.
     실패 시 None 반환(예외 전파 안 함).
     """
-    from pytrends.request import TrendReq
-
     for attempt in range(1, _RETRY_MAX + 1):
         try:
-            pt = TrendReq(hl="ko", tz=540)
-            pt.session = session
-            pt.build_payload(keywords, timeframe=timeframe, geo="KR")
-            df = pt.interest_over_time()
-            if df.empty:
+            df = client.interest_over_time(keywords, timeframe=timeframe, geo="KR")
+            if df is None or df.empty:
                 return {kw: 0.0 for kw in keywords}
             cols = [c for c in df.columns if c != "isPartial"]
             avg = df[cols].mean().to_dict()
             return {kw: round(float(avg.get(kw, 0)), 1) for kw in keywords}
         except Exception as exc:
             logger.warning(
-                "pytrends 요청 실패 (시도 %d/%d, 키워드=%s): %s",
+                "구글 트렌드 요청 실패 (시도 %d/%d, 키워드=%s): %s",
                 attempt, _RETRY_MAX, keywords, exc,
             )
             if attempt < _RETRY_MAX:
@@ -111,7 +104,9 @@ def fetch_keyword_interest(keywords: Optional[List[str]] = None) -> List[Dict]:
     """
     keywords = keywords or config.FASHION_KEYWORDS
     collected_at = _kst_today()
-    session = _make_session()
+    client = _make_client()
+    if client is None:
+        return []
 
     timeframe_now = "today 7-d"
     timeframe_prev = _weeks_ago_timeframe(2)  # 전주 7일
@@ -122,14 +117,14 @@ def fetch_keyword_interest(keywords: Optional[List[str]] = None) -> List[Dict]:
     for chunk in chunks:
         logger.info("Google Trends 수집 중: %s", chunk)
 
-        scores_now = _fetch_interest_chunk(session, chunk, timeframe_now)
+        scores_now = _fetch_interest_chunk(client, chunk, timeframe_now)
         if scores_now is None:
             logger.error("Google Trends 수집 실패 — 청크 스킵: %s", chunk)
             continue
 
         time.sleep(config.REQUEST_DELAY)
 
-        scores_prev = _fetch_interest_chunk(session, chunk, timeframe_prev)
+        scores_prev = _fetch_interest_chunk(client, chunk, timeframe_prev)
 
         for kw in chunk:
             score = scores_now.get(kw, 0.0)

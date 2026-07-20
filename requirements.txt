@@ -4,7 +4,7 @@
 scrapling==0.2.99
 requests
 notion-client
-pytrends
+trendspy          # 구글 트렌드 관심도 (pytrends 4.9.2는 구글 API 변경으로 400, 폐기)
 instaloader
 openpyxl
 pandas
