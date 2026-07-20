@@ -667,15 +667,17 @@ def _weather_block(weather_data: Dict) -> str:
         for f in fc
     )
     return f"""
-  <div class="section">
-    <h2>🌤 오늘의 날씨 & 패션 수요 예측</h2>
+  <details id="weather" class="section" open>
+    <summary>🌤 오늘의 날씨 & 패션 수요 예측</summary>
+    <div class="detail-body">
     <p style="font-size:18px;margin-bottom:8px">
       <b>{weather_data.get('current_temp')}°C</b>
       <span style="color:#888;font-size:14px"> (체감 {weather_data.get('apparent_temp')}°C) / {weather_data.get('weather_label')} / 최고 {weather_data.get('temp_max')}°C</span>
     </p>
     <p style="margin-bottom:6px">📊 카테고리별 수요 신호: {sig_html}</p>
     <p style="color:#888;font-size:13px">3일 예보: {fc_html}</p>
-  </div>"""
+    </div>
+  </details>"""
 
 
 def _keyword_table(keyword_data: List[Dict]) -> str:
@@ -1161,7 +1163,7 @@ def generate(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>패션 MD 마켓 인텔리전스 — {today_str}</title>
+<title>무신사·29CM 모니터링 대시보드 — {today_str}</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {{
@@ -1177,7 +1179,7 @@ def generate(
   header h1 {{ font-size:19px; font-weight:700; letter-spacing:-.5px; }}
   header .meta {{ font-size:12px; color:#94a3b8; }}
   /* ── 빠른 이동 ── */
-  .nav-bar {{ background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:16px; }}
+  .nav-bar {{ background:#fff; border:1px solid var(--border); border-radius:12px; margin-bottom:16px; position:sticky; top:8px; z-index:50; box-shadow:0 4px 14px rgba(15,12,41,.10); }}
   .nav-inner {{ display:flex; overflow-x:auto; scrollbar-width:none; padding:0 4px; }}
   .nav-inner::-webkit-scrollbar {{ display:none; }}
   .nav-item {{ padding:10px 14px; font-size:12px; font-weight:600; color:var(--muted); text-decoration:none; white-space:nowrap; border-bottom:2px solid transparent; transition:all .2s; }}
@@ -1294,7 +1296,7 @@ def generate(
 <body>
 <header>
   <div class="header-inner">
-    <h1>패션 MD 마켓 인텔리전스</h1>
+    <h1>무신사·29CM 모니터링 대시보드</h1>
     <span class="meta">공개 데이터 기반 · 마지막 업데이트: {now_str}<span id="gc-vc" title="오늘-전체 방문자" style="margin-left:8px;opacity:.5;font-variant-numeric:tabular-nums;"></span></span>
   </div>
 </header>
@@ -1303,20 +1305,20 @@ def generate(
   <!-- 빠른 이동 -->
   <nav class="nav-bar">
     <div class="nav-inner">
+      <a class="nav-item" href="#weather">🌤 날씨</a>
       <a class="nav-item" href="#md-actions">✅ 오늘의 액션</a>
+      <a class="nav-item" href="#signals">🎯 기획전 시그널</a>
       <a class="nav-item" href="#musinsa-ranking">🏆 무신사 랭킹</a>
       <a class="nav-item" href="#cm29-ranking">🛍 29CM 랭킹</a>
-      <a class="nav-item" href="#new-entries">⬆ 신규 진입</a>
-      <a class="nav-item" href="#signals">🎯 기획전 시그널</a>
-      <a class="nav-item" href="#watch-brands">🏷 관심 브랜드</a>
       <a class="nav-item" href="#cross-platform">↔ 교차 상승</a>
-      <a class="nav-item" href="#keywords">🔍 검색어</a>
-      <a class="nav-item" href="#events">🎪 기획전 현황</a>
-      <a class="nav-item" href="#magazine">📰 무신사 매거진</a>
-      <a class="nav-item" href="#soldout">🔴 이탈률 추이</a>
-      <a class="nav-item" href="#brand-ranking">📊 브랜드 랭킹</a>
-      <a class="nav-item" href="#trends">📈 트렌드</a>
       <a class="nav-item" href="#steady">🏅 스테디셀러</a>
+      <a class="nav-item" href="#new-entries">⬆ 신규 진입</a>
+      <a class="nav-item" href="#trend-insight">📈 트렌드 인사이트</a>
+      <a class="nav-item" href="#brand">📊 브랜드</a>
+      <a class="nav-item" href="#price-dist">💰 가격 분포</a>
+      <a class="nav-item" href="#search-trend">🔍 검색어 & 트렌드</a>
+      <a class="nav-item" href="#soldout">🔴 이탈률 추이</a>
+      <a class="nav-item" href="#platform-content">🎪 콘텐츠·기획</a>
       <a class="nav-item" href="#backtest">🧪 백테스트</a>
       <a class="nav-item" href="#methodology">📖 방법론</a>
     </div>
@@ -1324,6 +1326,10 @@ def generate(
 
   {_data_status_block(data_status or {})}
 
+  <!-- 최상단: 오늘의 날씨 & 수요 예측 -->
+  {_weather_block(weather_data)}
+
+  <!-- ① 의사결정 -->
   <details id="md-actions" class="section action-section" open>
     <summary>✅ 오늘의 MD 액션</summary>
     <div class="detail-body">
@@ -1331,9 +1337,16 @@ def generate(
     </div>
   </details>
 
-  {_weather_block(weather_data)}
+  <details id="signals" class="section signal-section" open>
+    <summary>🎯 기획전 타이밍 시그널</summary>
+    <div class="detail-body">
+    <div class="signal-grid">
+      {_signal_cards(signals)}
+    </div>
+    </div>
+  </details>
 
-  <!-- 1. 무신사 랭킹 TOP 30 -->
+  <!-- ② 랭킹·판매 현황 -->
   <details id="musinsa-ranking" class="section" open>
     <summary>🏆 무신사 랭킹 TOP 30</summary>
     <div class="detail-body">
@@ -1382,7 +1395,21 @@ def generate(
     </div>
   </details>
 
-  <!-- 3. 신규 진입 상품 (리뷰 인사이트 포함) -->
+  <details id="cross-platform" class="section" open>
+    <summary>↔ 무신사 · 29CM 교차 상승</summary>
+    <div class="detail-body">
+    {_cross_platform_block(cross_platform or [])}
+    </div>
+  </details>
+
+  <details id="steady" class="section" open>
+    <summary>🏅 스테디셀러 (연속 TOP 10)</summary>
+    <div class="detail-body">
+    {_steady_seller_rows(steady or [])}
+    </div>
+  </details>
+
+  <!-- ③ 신규·상품 트렌드 -->
   <details id="new-entries" class="section" open>
     <summary>⬆ 오늘의 신규 진입 상품</summary>
     <div class="detail-body">
@@ -1396,78 +1423,30 @@ def generate(
     </div>
   </details>
 
-  <!-- 4. 기획전 시그널 -->
-  <details id="signals" class="section signal-section" open>
-    <summary>🎯 기획전 타이밍 시그널</summary>
-    <div class="detail-body">
-    <div class="signal-grid">
-      {_signal_cards(signals)}
-    </div>
-    </div>
-  </details>
-
-  <details id="watch-brands" class="section" open>
-    <summary>🏷 관심 브랜드 현황</summary>
-    <div class="detail-body">
-    {_brand_section(brand_data)}
-    </div>
-  </details>
-
-  <details id="cross-platform" class="section" open>
-    <summary>↔ 무신사 · 29CM 교차 상승</summary>
-    <div class="detail-body">
-    {_cross_platform_block(cross_platform or [])}
-    </div>
-  </details>
-
-  <!-- 5. 실시간 검색어 + 트렌드 예측 -->
-  <details id="keywords" class="section" open>
-    <summary>🔍 무신사 실시간 검색어 & 트렌드 예측</summary>
+  <!-- ④ 트렌드 인사이트 (카테고리 + 소재·색상) -->
+  <details id="trend-insight" class="section" open>
+    <summary>📈 트렌드 인사이트</summary>
     <div class="detail-body">
     <div class="col-2">
       <div>
-        <h3 class="sub">실시간 검색어 TOP 20</h3>
-        {_keyword_table(keyword_data or [])}
+        <h3 class="sub">카테고리 트렌드 (주간 성장률)</h3>
+        {_cat_growth_block(cat_growth or [])}
       </div>
       <div>
-        <h3 class="sub">트렌드 예측 (데이터 축적 중)</h3>
-        {_forecast_table(forecasts or [])}
+        <h3 class="sub">소재·색상 (신규 진입 기준)</h3>
+        {_material_color_block(mat_color or {})}
       </div>
     </div>
     </div>
   </details>
 
-  <!-- 6. 기획전 현황 -->
-  <details id="events" class="section" open>
-    <summary>🎪 기획전 & 에디션 현황</summary>
-    <div class="detail-body">
-    {_events_block(musinsa_evs or [], cm29_evs or [])}
-    </div>
-  </details>
-
-  <!-- 6b. 무신사 매거진 트렌드 -->
-  <details id="magazine" class="section" open>
-    <summary>📰 무신사 매거진 트렌드</summary>
-    <div class="detail-body">
-    {_magazine_block(magazine_trend or dict())}
-    </div>
-  </details>
-
-  <!-- 6c. 카테고리 이탈률 추이 (품절 신호) -->
-  <details id="soldout" class="section" open>
-    <summary>🔴 카테고리 이탈률 추이 (품절·수요 신호)</summary>
-    <div class="detail-body">
-    {_soldout_block(soldout_trend or [])}
-    </div>
-  </details>
-
-  <!-- 7. 브랜드 랭킹 & 카테고리 성장률 -->
-  <details id="brand-ranking" class="section" open>
-    <summary>📊 브랜드 랭킹 & 카테고리 성장률</summary>
+  <!-- ⑤ 시장 구조 (브랜드 + 가격) -->
+  <details id="brand" class="section" open>
+    <summary>📊 브랜드</summary>
     <div class="detail-body">
     <div class="col-2">
       <div>
-        <h3 class="sub">🏆 무신사 브랜드 TOP 15</h3>
+        <h3 class="sub">🏆 무신사 브랜드 랭킹 TOP 15</h3>
         <div class="tabs" id="brand-cat-tabs" style="margin-bottom:8px">
           <div class="tab active" onclick="switchBrandCat('전체',this)">전체</div>
           <div class="tab" onclick="switchBrandCat('포멀',this)">포멀</div>
@@ -1476,41 +1455,65 @@ def generate(
         <div id="brand-rank-formal" style="display:none">{_brand_ranking_block(brand_ranks_formal or [], group="brand-rank-formal")}</div>
       </div>
       <div>
-        <h3 class="sub">📈 카테고리 성장률 (주간)</h3>
-        {_cat_growth_block(cat_growth or [])}
+        <h3 class="sub">🏷 관심 브랜드 현황</h3>
+        {_brand_section(brand_data)}
       </div>
     </div>
     </div>
   </details>
 
-  <!-- 8. 트렌드 & 가격 분포 -->
-  <details id="trends" class="section" open>
-    <summary>📈 트렌드 & 가격 분포</summary>
+  <details id="price-dist" class="section" open>
+    <summary>💰 가격대 분포</summary>
     <div class="detail-body">
-    <div class="chart-row">
-      <div><canvas id="trendChart" height="200"></canvas></div>
-      <div><canvas id="priceChart" height="200"></canvas></div>
+    <div style="max-width:620px"><canvas id="priceChart" height="200"></canvas></div>
+    </div>
+  </details>
+
+  <!-- ⑥ 수요·검색 신호 -->
+  <details id="search-trend" class="section" open>
+    <summary>🔍 검색어 & 트렌드</summary>
+    <div class="detail-body">
+    <div class="col-2">
+      <div>
+        <h3 class="sub">무신사 실시간 검색어 TOP 20</h3>
+        {_keyword_table(keyword_data or [])}
+      </div>
+      <div>
+        <h3 class="sub">검색 트렌드 (구글·네이버)</h3>
+        <div><canvas id="trendChart" height="200"></canvas></div>
+        <h3 class="sub" style="margin-top:14px">트렌드 예측 (데이터 축적 중)</h3>
+        {_forecast_table(forecasts or [])}
+      </div>
     </div>
     </div>
   </details>
 
-  <!-- 9. 스테디셀러 -->
-  <details id="steady" class="section" open>
-    <summary>🏅 스테디셀러 (연속 TOP 10)</summary>
+  <details id="soldout" class="section" open>
+    <summary>🔴 카테고리 이탈률 추이 (품절·수요 신호)</summary>
     <div class="detail-body">
-    {_steady_seller_rows(steady or [])}
+    {_soldout_block(soldout_trend or [])}
     </div>
   </details>
 
-  <!-- 11. 소재·색상 트렌드 -->
-  <details class="section" open>
-    <summary>🧵 신규 진입 소재·색상 트렌드</summary>
+  <!-- ⑦ 플랫폼 콘텐츠 · 기획 (매거진 + 기획전) -->
+  <details id="platform-content" class="section" open>
+    <summary>🎪 플랫폼 콘텐츠 · 기획</summary>
     <div class="detail-body">
-    {_material_color_block(mat_color or {})}
+    <div class="col-2">
+      <div>
+        <h3 class="sub">📰 무신사 매거진 트렌드</h3>
+        {_magazine_block(magazine_trend or dict())}
+      </div>
+      <div>
+        <h3 class="sub">🎪 기획전 & 에디션 현황</h3>
+        {_events_block(musinsa_evs or [], cm29_evs or [])}
+      </div>
+    </div>
     </div>
   </details>
 
-  <details id="backtest" class="section" open>
+  <!-- ⑧ 신뢰성·메타 (기본 접힘) -->
+  <details id="backtest" class="section">
     <summary>🧪 과거 추천 백테스트</summary>
     <div class="detail-body">
     <p class="muted" style="margin-bottom:10px">성과가 좋은 추천만 선별하지 않고 검증 가능한 모든 추천을 같은 기준으로 평가합니다.</p>
@@ -1518,7 +1521,7 @@ def generate(
     </div>
   </details>
 
-  <details id="methodology" class="section" open>
+  <details id="methodology" class="section">
     <summary>📖 데이터 출처와 분석 방법론</summary>
     <div class="detail-body">
     {_methodology_block()}
