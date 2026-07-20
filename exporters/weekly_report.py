@@ -26,19 +26,49 @@ logger = logging.getLogger(__name__)
 
 # ── 노션에서 주간 데이터 조회 ─────────────────────────────────────────────────
 
+_DATA_SOURCE_CACHE: Dict[str, str] = {}
+
+
+def _resolve_data_source_id(client, db_id: str) -> str:
+    """DB id로부터 data source id를 얻는다(notion-client 3.x: query는 data source 단위).
+
+    notion-client 2.x의 `databases.query`가 3.x에서 제거되어, 먼저 DB를
+    retrieve해 첫 data source id를 뽑아 캐시한다.
+    """
+    if db_id in _DATA_SOURCE_CACHE:
+        return _DATA_SOURCE_CACHE[db_id]
+    db = client.databases.retrieve(database_id=db_id)
+    sources = db.get("data_sources") or []
+    if not sources:
+        raise ValueError(f"DB {db_id}에 data source가 없습니다")
+    ds_id = sources[0]["id"]
+    _DATA_SOURCE_CACHE[db_id] = ds_id
+    return ds_id
+
+
 def _fetch_weekly_data(client, db_id: str, start: str, end: str) -> List[Dict]:
-    """노션 DB에서 date 범위로 데이터 조회."""
+    """노션 DB에서 date 범위로 데이터 조회(전체 페이지 순회)."""
     try:
-        resp = client.databases.query(
-            database_id=db_id,
-            filter={
-                "and": [
-                    {"property": "날짜", "date": {"on_or_after": start}},
-                    {"property": "날짜", "date": {"on_or_before": end}},
-                ]
-            },
-        )
-        return resp.get("results", [])
+        ds_id = _resolve_data_source_id(client, db_id)
+        date_filter = {
+            "and": [
+                {"property": "날짜", "date": {"on_or_after": start}},
+                {"property": "날짜", "date": {"on_or_before": end}},
+            ]
+        }
+        results: List[Dict] = []
+        cursor: Optional[str] = None
+        while True:
+            resp = client.data_sources.query(
+                data_source_id=ds_id,
+                filter=date_filter,
+                **({"start_cursor": cursor} if cursor else {}),
+            )
+            results.extend(resp.get("results", []))
+            if not resp.get("has_more"):
+                break
+            cursor = resp.get("next_cursor")
+        return results
     except Exception as exc:
         logger.error("노션 주간 데이터 조회 실패: %s", exc)
         return []
