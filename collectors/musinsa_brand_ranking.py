@@ -7,6 +7,8 @@ import config
 logger = logging.getLogger(__name__)
 
 _API_URL = "https://api.musinsa.com/api2/hm/web/v5/pans/ranking?storeCode=musinsa&subPan=brand"
+# 컨템포러리포멀 스타일 브랜드 랭킹 (브랜드 랭킹 상단 스타일 탭 sectionId=1060)
+_FORMAL_API_URL = "https://api.musinsa.com/api2/hm/web/v5/pans/ranking/sections/1060?storeCode=musinsa&categoryCode="
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Accept": "application/json",
@@ -16,17 +18,17 @@ _HEADERS = {
 def _kst_today() -> str:
     return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d")
 
-def collect(top_n: int = 30) -> List[Dict]:
-    """무신사 브랜드 랭킹 수집."""
+def collect(top_n: int = 30, api_url: str = _API_URL, label: str = "브랜드 랭킹") -> List[Dict]:
+    """무신사 브랜드 랭킹 수집. api_url로 스타일(컨템포러리포멀 등) 랭킹도 수집 가능."""
     collected_at = _kst_today()
     for attempt in range(1, 4):
         try:
-            req = urllib.request.Request(_API_URL, headers=_HEADERS)
+            req = urllib.request.Request(api_url, headers=_HEADERS)
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             break
         except Exception as e:
-            logger.warning("브랜드 랭킹 수집 실패 (시도 %d/3): %s", attempt, e)
+            logger.warning("%s 수집 실패 (시도 %d/3): %s", label, attempt, e)
             if attempt < 3: time.sleep(3)
             else: return []
 
@@ -65,5 +67,10 @@ def collect(top_n: int = 30) -> List[Dict]:
         })
 
     results.sort(key=lambda x: x["rank"])
-    logger.info("무신사 브랜드 랭킹 수집 완료: %d건", len(results))
+    logger.info("무신사 %s 수집 완료: %d건", label, len(results))
     return results
+
+
+def collect_formal(top_n: int = 30) -> List[Dict]:
+    """무신사 컨템포러리포멀 스타일 브랜드 랭킹 수집."""
+    return collect(top_n=top_n, api_url=_FORMAL_API_URL, label="컨템포러리포멀 브랜드 랭킹")

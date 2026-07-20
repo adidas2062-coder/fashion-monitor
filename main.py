@@ -155,6 +155,7 @@ def run(dry_run: bool = False) -> None:
     from collectors import cm29_ranking, musinsa_brand_ranking, musinsa_events, cm29_events, musinsa_magazine
     cm29_data    = _run("29CM 남성 랭킹 수집",    cm29_ranking.collect) or []
     brand_ranks  = _run("무신사 브랜드 랭킹 수집",  musinsa_brand_ranking.collect) or []
+    brand_ranks_formal = _run("무신사 컨템포러리포멀 브랜드 랭킹 수집", musinsa_brand_ranking.collect_formal) or []
     musinsa_evs  = _run("무신사 기획전 수집",       musinsa_events.collect) or []
     cm29_evs     = _run("29CM 에디션 수집",        cm29_events.collect) or []
     mag_items    = _run("무신사 매거진 수집",       musinsa_magazine.collect) or []
@@ -465,6 +466,7 @@ def run(dry_run: bool = False) -> None:
         top_all=overall_best_rank_result["items"],
         magazine_trend=mag_trend,
         soldout_trend=soldout_data,
+        brand_ranks_formal=brand_ranks_formal,
     )
 
     _run("시그널 스냅샷 저장", snapshot_store.save, "signals", signals)

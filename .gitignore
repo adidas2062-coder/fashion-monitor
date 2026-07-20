@@ -22,6 +22,9 @@ build/
 venv/
 env/
 
+# 개인 문서 (이력서 등 프로젝트와 무관)
+*.docx
+
 # macOS
 .DS_Store
 
