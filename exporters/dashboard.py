@@ -780,47 +780,59 @@ def _steady_seller_rows(steady: List[Dict]) -> str:
 
 
 def _events_block(musinsa_evs: List[Dict], cm29_evs: List[Dict]) -> str:
-    """기획전/에디션 섹션 HTML."""
+    """기획전/에디션 섹션 HTML. 플랫폼별 3개까지 노출 + 나머지(최대 6개)는 펼치기."""
+    _MUSINSA_SALE_URL = "https://www.musinsa.com/main/musinsa/sale"
+
+    def _event_item(title_html: str, badge: str, hidden: bool, group: str) -> str:
+        attrs = f' data-expand-group="{group}" style="display:none"' if hidden else ""
+        return (
+            f'<div class="event-item"{attrs}>'
+            f'<span class="event-title">{title_html}</span>'
+            f'<span class="event-badge">{_esc(badge)}</span>'
+            f'</div>'
+        )
+
+    def _expand_btn(total: int, group: str) -> str:
+        if total <= 3:
+            return ""
+        more = f"▼ {total}개 모두 보기"
+        return (
+            f'<button class="expand-btn" data-group="{group}" data-expanded="0" '
+            f'data-more-text="{more}" onclick="toggleSimpleExpand(this)">{more}</button>'
+        )
+
     parts = ['<div>']
 
-    # 무신사 기획전 — 기획전 섹션은 모두 무신사 세일 페이지에 노출되므로,
-    # 개별 랜딩 URL이 없으면 세일 페이지로 링크(수집기가 url을 채우면 그걸 우선 사용)
-    _MUSINSA_SALE_URL = "https://www.musinsa.com/main/musinsa/sale"
+    # 무신사 기획전 — 개별 랜딩 URL이 없으면 세일 페이지로 링크
     parts.append('<div><h3 style="font-size:13px;color:#555;margin-bottom:8px">🛒 무신사 기획전</h3>')
     if musinsa_evs:
-        for e in musinsa_evs[:6]:
-            badge = _esc(e.get("period") or f'{e["item_count"]}개 상품')
+        shown = musinsa_evs[:6]
+        for i, e in enumerate(shown):
+            badge = e.get("period") or f'{e["item_count"]}개 상품'
             url   = e.get("url") or _MUSINSA_SALE_URL
             title_html = (
                 f'<a href="{_esc(url)}" target="_blank" style="color:inherit;text-decoration:none">'
                 f'{_esc(e["title"])}</a>'
             )
-            parts.append(
-                f'<div class="event-item">'
-                f'<span class="event-title">{title_html}</span>'
-                f'<span class="event-badge">{badge}</span>'
-                f'</div>'
-            )
+            parts.append(_event_item(title_html, badge, i >= 3, "musinsa-events"))
+        parts.append(_expand_btn(len(shown), "musinsa-events"))
     else:
         parts.append('<p class="empty">수집 중</p>')
     parts.append('</div>')
 
     parts.append('<div style="margin-top:14px"><h3 style="font-size:13px;color:#555;margin-bottom:8px">🛍 29CM 에디션</h3>')
     if cm29_evs:
-        for e in cm29_evs[:6]:
-            badge = _esc(e.get("date_range") or e.get("period") or e.get("sub_title",""))
+        shown = cm29_evs[:6]
+        for i, e in enumerate(shown):
+            badge = e.get("date_range") or e.get("period") or e.get("sub_title", "")
             title = _esc(e.get("title", ""))
             url   = e.get("url", "")
             title_html = (
                 f'<a href="{_esc(url)}" target="_blank" style="color:inherit;text-decoration:none">{title}</a>'
                 if url else title
             )
-            parts.append(
-                f'<div class="event-item">'
-                f'<span class="event-title">{title_html}</span>'
-                f'<span class="event-badge">{badge}</span>'
-                f'</div>'
-            )
+            parts.append(_event_item(title_html, badge, i >= 3, "cm29-events"))
+        parts.append(_expand_btn(len(shown), "cm29-events"))
     else:
         parts.append('<p class="empty">수집 중</p>')
     parts.append('</div>')
@@ -1308,16 +1320,17 @@ def generate(
       <a class="nav-item" href="#weather">🌤 날씨</a>
       <a class="nav-item" href="#md-actions">✅ 오늘의 액션</a>
       <a class="nav-item" href="#signals">🎯 기획전 시그널</a>
+      <a class="nav-item" href="#brand-ranking">📊 브랜드 랭킹</a>
       <a class="nav-item" href="#musinsa-ranking">🏆 무신사 랭킹</a>
       <a class="nav-item" href="#cm29-ranking">🛍 29CM 랭킹</a>
+      <a class="nav-item" href="#watch-brands">🏷 관심 브랜드</a>
       <a class="nav-item" href="#cross-platform">↔ 교차 상승</a>
       <a class="nav-item" href="#steady">🏅 스테디셀러</a>
       <a class="nav-item" href="#new-entries">⬆ 신규 진입</a>
-      <a class="nav-item" href="#trend-insight">📈 트렌드 인사이트</a>
-      <a class="nav-item" href="#brand">📊 브랜드</a>
+      <a class="nav-item" href="#material-color">🧵 소재·색상</a>
+      <a class="nav-item" href="#category">📈 카테고리</a>
       <a class="nav-item" href="#price-dist">💰 가격 분포</a>
       <a class="nav-item" href="#search-trend">🔍 검색어 & 트렌드</a>
-      <a class="nav-item" href="#soldout">🔴 이탈률 추이</a>
       <a class="nav-item" href="#platform-content">🎪 콘텐츠·기획</a>
       <a class="nav-item" href="#backtest">🧪 백테스트</a>
       <a class="nav-item" href="#methodology">📖 방법론</a>
@@ -1343,6 +1356,19 @@ def generate(
     <div class="signal-grid">
       {_signal_cards(signals)}
     </div>
+    </div>
+  </details>
+
+  <!-- 브랜드 랭킹 (시그널 아래) -->
+  <details id="brand-ranking" class="section" open>
+    <summary>📊 무신사 브랜드 랭킹 TOP 15</summary>
+    <div class="detail-body">
+    <div class="tabs" id="brand-cat-tabs" style="margin-bottom:8px">
+      <div class="tab active" onclick="switchBrandCat('전체',this)">전체</div>
+      <div class="tab" onclick="switchBrandCat('포멀',this)">포멀</div>
+    </div>
+    <div id="brand-rank-all">{_brand_ranking_block(brand_ranks or [])}</div>
+    <div id="brand-rank-formal" style="display:none">{_brand_ranking_block(brand_ranks_formal or [], group="brand-rank-formal")}</div>
     </div>
   </details>
 
@@ -1395,6 +1421,14 @@ def generate(
     </div>
   </details>
 
+  <!-- 관심 브랜드 현황 (29CM 아래) -->
+  <details id="watch-brands" class="section" open>
+    <summary>🏷 관심 브랜드 현황</summary>
+    <div class="detail-body">
+    {_brand_section(brand_data)}
+    </div>
+  </details>
+
   <details id="cross-platform" class="section" open>
     <summary>↔ 무신사 · 29CM 교차 상승</summary>
     <div class="detail-body">
@@ -1423,9 +1457,17 @@ def generate(
     </div>
   </details>
 
-  <!-- ④ 트렌드 인사이트 (카테고리 + 소재·색상) -->
-  <details id="trend-insight" class="section" open>
-    <summary>📈 트렌드 인사이트</summary>
+  <!-- ④ 신규 진입 소재·색상 (단독) -->
+  <details id="material-color" class="section" open>
+    <summary>🧵 신규 진입 소재·색상 트렌드</summary>
+    <div class="detail-body">
+    {_material_color_block(mat_color or {})}
+    </div>
+  </details>
+
+  <!-- ⑤ 카테고리 동향 (주간 성장률 + 이탈률) -->
+  <details id="category" class="section" open>
+    <summary>📈 카테고리 트렌드 & 이탈률</summary>
     <div class="detail-body">
     <div class="col-2">
       <div>
@@ -1433,35 +1475,14 @@ def generate(
         {_cat_growth_block(cat_growth or [])}
       </div>
       <div>
-        <h3 class="sub">소재·색상 (신규 진입 기준)</h3>
-        {_material_color_block(mat_color or {})}
+        <h3 class="sub">카테고리 이탈률 추이 (품절·수요 신호)</h3>
+        {_soldout_block(soldout_trend or [])}
       </div>
     </div>
     </div>
   </details>
 
-  <!-- ⑤ 시장 구조 (브랜드 + 가격) -->
-  <details id="brand" class="section" open>
-    <summary>📊 브랜드</summary>
-    <div class="detail-body">
-    <div class="col-2">
-      <div>
-        <h3 class="sub">🏆 무신사 브랜드 랭킹 TOP 15</h3>
-        <div class="tabs" id="brand-cat-tabs" style="margin-bottom:8px">
-          <div class="tab active" onclick="switchBrandCat('전체',this)">전체</div>
-          <div class="tab" onclick="switchBrandCat('포멀',this)">포멀</div>
-        </div>
-        <div id="brand-rank-all">{_brand_ranking_block(brand_ranks or [])}</div>
-        <div id="brand-rank-formal" style="display:none">{_brand_ranking_block(brand_ranks_formal or [], group="brand-rank-formal")}</div>
-      </div>
-      <div>
-        <h3 class="sub">🏷 관심 브랜드 현황</h3>
-        {_brand_section(brand_data)}
-      </div>
-    </div>
-    </div>
-  </details>
-
+  <!-- ⑥ 가격대 분포 -->
   <details id="price-dist" class="section" open>
     <summary>💰 가격대 분포</summary>
     <div class="detail-body">
@@ -1481,17 +1502,10 @@ def generate(
       <div>
         <h3 class="sub">검색 트렌드 (구글·네이버)</h3>
         <div><canvas id="trendChart" height="200"></canvas></div>
-        <h3 class="sub" style="margin-top:14px">트렌드 예측 (데이터 축적 중)</h3>
+        <h3 class="sub" style="margin-top:14px">트렌드 예측 <span style="font-weight:400;color:#888;font-size:11px">— 구글·네이버 검색 트렌드 28일 가중이동평균 기반 자체 예측 (데이터 축적 중)</span></h3>
         {_forecast_table(forecasts or [])}
       </div>
     </div>
-    </div>
-  </details>
-
-  <details id="soldout" class="section" open>
-    <summary>🔴 카테고리 이탈률 추이 (품절·수요 신호)</summary>
-    <div class="detail-body">
-    {_soldout_block(soldout_trend or [])}
     </div>
   </details>
 
@@ -1794,18 +1808,23 @@ function renderCharts() {{
   }}
 }}
 
-const chartSection = document.getElementById('trends');
-chartSection.addEventListener('toggle', () => {{
-  if (chartSection.open) renderCharts();
+// 차트 캔버스(trendChart=search-trend / priceChart=price-dist)가 각기 다른
+// 섹션에 있으므로 두 섹션 모두를 트리거로 감시한다. renderCharts는 내부
+// chartsRendered 가드로 중복 호출돼도 안전.
+const chartSections = ['search-trend', 'price-dist']
+  .map(id => document.getElementById(id))
+  .filter(Boolean);
+chartSections.forEach(sec => {{
+  sec.addEventListener('toggle', () => {{ if (sec.open) renderCharts(); }});
 }});
-if ('IntersectionObserver' in window) {{
+if ('IntersectionObserver' in window && chartSections.length) {{
   const chartObserver = new IntersectionObserver(entries => {{
     if (entries.some(entry => entry.isIntersecting)) {{
       renderCharts();
       chartObserver.disconnect();
     }}
   }}, {{ rootMargin: '200px' }});
-  chartObserver.observe(chartSection);
+  chartSections.forEach(sec => chartObserver.observe(sec));
 }} else {{
   renderCharts();
 }}
